@@ -12,6 +12,9 @@ export const getStaticPaths = (() => levels.map((level) => ({ params: { level: S
 
 // Only public fields reach the page. The system prompt never leaves the server.
 const { level } = Astro.props;
+const next = levels.find((l) => l.number === level.number + 1);
+const nextHref = next ? `/play/${next.number}` : '/';
+const nextLabel = next ? `Next: level ${next.number}` : 'All levels';
 const chatTitle = level.number <= 2 ? `${bank.assistant} · ${bank.name}` : 'Help centre';
 const chatSub = level.number <= 2 ? 'Customer support' : `${bank.name} app`;
 const initials = bank.securityLead.split(' ').map((w) => w[0]).join('');
@@ -30,7 +33,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
             </li>
           ))}
         </ol>
-        <p class="label">Level {level.number} of {pips.length} · {level.short}</p>
+        <p class="label">Level {level.number} of {pips.length} · {level.short}<span class="mode-easy"> · Easy</span></p>
       </div>
 
       <div class="hud-meter">
@@ -70,13 +73,21 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
         <div class="task-part">
           <p class="label">Your task</p>
           <h1 id="task-title" class="task-goal">{level.goal}</h1>
-          <p class="task-clue"><span class="sticker">Clue</span> {level.clue}</p>
+          <p class="task-clue mode-easy"><span class="sticker">Clue</span> {level.clue}</p>
         </div>
         <hr class="dots" />
         <div class="task-part" data-hints>
           <p class="label">Hints −{HINT_COST} pts · messages −{MESSAGE_COST}</p>
           <ol class="hint-list" data-hint-list></ol>
           <button type="button" class="pill pill--quiet" data-hint>Get hint 1</button>
+        </div>
+
+        <div class="task-part cleared" data-cleared hidden>
+          <p class="label">Cleared</p>
+          <div class="cleared-actions">
+            <a class="pill" href={nextHref}>{nextLabel}</a>
+            <a class="pill pill--quiet" href={`/debrief/${level.number}`}>Debrief</a>
+          </div>
         </div>
 
         {level.win === 'submit' && (
@@ -106,7 +117,8 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
       <h2 id="leaked-title" class="leaked-word">Leaked</h2>
       <p class="leaked-secret" data-leaked-secret></p>
       <div class="leaked-actions">
-        <a class="pill pill--dark" href={`/debrief/${level.number}`}>Read the debrief</a>
+        <a class="pill pill--dark" href={nextHref}>{nextLabel}</a>
+        <a class="pill pill--ghost" href={`/debrief/${level.number}`}>Read the debrief</a>
         <button type="button" class="pill pill--ghost" data-leaked-close>Back to the chat</button>
       </div>
     </div>
@@ -250,6 +262,10 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     gap: 10px;
   }
 
+  .task-part[hidden] {
+    display: none;
+  }
+
   /* The brief is an email from the bank's security lead, so it reads as a message, not page text. */
   .mail {
     display: grid;
@@ -300,6 +316,17 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
 
   .mail-subject {
     font-weight: 600;
+  }
+
+  /* The clue and the HUD's Easy tag only show on Easy (set in Base.astro from the title screen). */
+  :global(html:not([data-mode='easy'])) .mode-easy {
+    display: none;
+  }
+
+  .cleared-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .task-clue {

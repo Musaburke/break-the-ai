@@ -21,6 +21,12 @@ const tiles = [
         <button type="button" class="pill pill--big" data-start>Play</button>
         <p class="title-status" data-status role="status">{MESSAGES_PER_RUN} messages. No sign-up.</p>
       </div>
+      <fieldset class="mode">
+        <legend class="label">Difficulty</legend>
+        <label><input type="radio" name="mode" value="normal" checked /> <span>Normal</span></label>
+        <label><input type="radio" name="mode" value="easy" /> <span>Easy</span></label>
+        <p class="mode-note">Easy adds a clue to every level.</p>
+      </fieldset>
     </div>
 
     <div class="levels" id="levels">
@@ -109,6 +115,19 @@ const tiles = [
     })
     .catch(() => {});
 
+  // Difficulty lives in this browser only; Base.astro reads it before paint on every page.
+  const modes = [...document.querySelectorAll<HTMLInputElement>('input[name="mode"]')];
+  const easy = document.documentElement.dataset.mode === 'easy';
+  modes.forEach((m) => {
+    m.checked = (m.value === 'easy') === easy;
+    m.addEventListener('change', () => {
+      document.documentElement.dataset.mode = m.value;
+      try {
+        localStorage.setItem('bta-mode', m.value);
+      } catch {}
+    });
+  });
+
   play.addEventListener('click', async () => {
     play.disabled = true;
     const res = await fetch('/api/run', { method: 'POST' });
@@ -165,6 +184,69 @@ const tiles = [
   }
 
   .title-status {
+    color: var(--muted);
+  }
+
+  .mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 20px 0 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .mode legend {
+    float: left;
+    margin-right: 8px;
+  }
+
+  .mode label {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .mode input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .mode span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font: 700 0.875rem / 1 var(--display);
+    text-transform: uppercase;
+    transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), transform 120ms var(--ease-out);
+  }
+
+  .mode label:hover span {
+    color: var(--ink);
+  }
+
+  .mode label:active span {
+    transform: scale(0.96);
+  }
+
+  .mode input:checked + span {
+    background: var(--ink);
+    color: var(--deep);
+  }
+
+  .mode input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .mode-note {
+    width: 100%;
+    font-size: var(--step-small);
     color: var(--muted);
   }
 

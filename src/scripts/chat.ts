@@ -49,6 +49,9 @@ function markSecret(item: HTMLElement, secret: string) {
 
 function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, points?: number) {
   chatForm.hidden = true;
+  // The way on stays in the task box after the Leaked screen closes.
+  const cleared = document.querySelector<HTMLElement>('[data-cleared]');
+  if (cleared) cleared.hidden = false;
   const submit = document.querySelector<HTMLFormElement>('[data-submit]');
   if (submit) submit.hidden = true;
   const panel = document.querySelector<HTMLElement>('[data-leaked]')!;

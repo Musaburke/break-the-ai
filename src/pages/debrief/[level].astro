@@ -23,6 +23,8 @@ const next = getLevel(level.number + 1);
 const { debrief } = level;
 const points = levelScore(progress.messages_used, progress.hints_used);
 const fmt = (n: number) => n.toLocaleString('en-GB');
+const cost = (n: number) => (n ? `−${fmt(n)}` : '0');
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 ---
 <Base title={`Level ${level.number} cleared · Break the AI`}>
   <section class="head wrap" aria-labelledby="debrief-title">
@@ -32,8 +34,8 @@ const fmt = (n: number) => n.toLocaleString('en-GB');
 
     <dl class="tally">
       <div><dt class="label">Level</dt><dd>{fmt(LEVEL_POINTS)}</dd></div>
-      <div><dt class="label">{progress.messages_used} messages</dt><dd>−{fmt(progress.messages_used * MESSAGE_COST)}</dd></div>
-      <div><dt class="label">{progress.hints_used} hints</dt><dd>−{fmt(progress.hints_used * HINT_COST)}</dd></div>
+      <div><dt class="label">{plural(progress.messages_used, 'message')}</dt><dd>{cost(progress.messages_used * MESSAGE_COST)}</dd></div>
+      <div><dt class="label">{plural(progress.hints_used, 'hint')}</dt><dd>{cost(progress.hints_used * HINT_COST)}</dd></div>
       <div class="tally-total"><dt class="label">You scored</dt><dd>{fmt(points)}</dd></div>
     </dl>
   </section>
