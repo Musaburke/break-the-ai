@@ -3,11 +3,11 @@ import { env } from 'cloudflare:workers';
 import { HISTORY_TURNS, MAX_MESSAGE_LENGTH, MAX_REPLY_TOKENS, MESSAGES_PER_LEVEL, utcDay } from '../../engine/budget';
 import { levelSecret } from '../../engine/crypto';
 import { blockedInput, filteredReply, shownReply } from '../../engine/defences';
+import { chatHistory } from '../../engine/history';
 import { leaks } from '../../engine/leak';
 import { currentPlayer } from '../../engine/player';
 import { buildMessages } from '../../engine/prompt';
 import { createSseParser, sseEvent } from '../../engine/sse';
-import type { Turn } from '../../engine/types';
 import { levelScore } from '../../engine/score';
 import { getLevel } from '../../levels';
 
@@ -56,17 +56,8 @@ export const POST: APIRoute = async ({ cookies, request }) => {
     .first<{ messages_left: number }>();
   if (!spent) return fail('limit', 429);
 
-  // History is read from the server's own log, never from the browser, so a player can't forge the model's past replies.
-  // It starts after the latest new chat (a reset event), so it matches what's on the player's screen.
-  const { results: past } = await db
-    .prepare(
-      `SELECT kind, text FROM events WHERE player_id = ?1 AND level = ?2 AND kind IN ('message', 'reply') AND text IS NOT NULL
-         AND id > COALESCE((SELECT MAX(id) FROM events WHERE player_id = ?1 AND level = ?2 AND kind = 'reset'), 0)
-       ORDER BY id DESC LIMIT ?3`,
-    )
-    .bind(player.id, level.number, HISTORY_TURNS)
-    .all<{ kind: string; text: string }>();
-  const history: Turn[] = past.reverse().map((e) => ({ role: e.kind === 'message' ? 'user' : 'assistant', content: e.text }));
+  // The model sees the last few turns since the latest new chat, which is what's on the player's screen.
+  const history = await chatHistory(db, player.id, level.number, HISTORY_TURNS);
 
   const now = new Date().toISOString();
   const [counted] = await db.batch<{ messages_used: number; hints_used: number }>([

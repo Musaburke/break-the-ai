@@ -168,17 +168,21 @@ export async function mountChat(root: HTMLElement) {
     send.disabled = true;
     input.disabled = true;
   }
-  // The page opens on a fresh conversation, so the model never remembers turns the player can't see.
+  // The conversation so far comes back on every visit, so leaving to the menu loses nothing,
+  // and what's on screen is always what the model remembers. Only New chat starts over.
   // The body is always read: an unread body keeps the request open.
   const newChat = () =>
-    fetch('/api/new-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) })
+    fetch('/api/conversation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) })
       .then((res) => res.json())
       .catch(() => null);
   const newChatButton = root.querySelector<HTMLButtonElement>('[data-new-chat]');
+  const saved = (await fetch(`/api/conversation?level=${level}`)
+    .then((res) => res.json())
+    .catch(() => null)) as { turns?: { role: 'user' | 'assistant'; content: string }[] } | null;
+  saved?.turns?.forEach((t) => bubble(log, t.role === 'user' ? 'you' : 'bot', t.content));
   if (here?.solved || !previousSolved) {
     if (newChatButton) newChatButton.hidden = true;
   } else {
-    await newChat();
     newChatButton?.addEventListener('click', async () => {
       if (send.disabled) return;
       newChatButton.disabled = true;
