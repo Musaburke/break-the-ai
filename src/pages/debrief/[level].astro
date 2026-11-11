@@ -1,0 +1,223 @@
+---
+import { env } from 'cloudflare:workers';
+import Base from '../../layouts/Base.astro';
+import { currentPlayer } from '../../engine/player';
+import { HINT_COST, LEVEL_POINTS, MESSAGE_COST, levelScore } from '../../engine/score';
+import { getLevel, levels } from '../../levels';
+
+// Rendered on demand: the debrief only opens once the server has recorded the level as solved.
+export const prerender = false;
+
+const level = getLevel(Number(Astro.params.level));
+if (!level) return Astro.redirect('/');
+
+const player = await currentPlayer(Astro.cookies, env.SECRET_KEY, env.DB);
+const progress = player
+  ? await env.DB.prepare('SELECT messages_used, hints_used, solved_at FROM progress WHERE player_id = ? AND level = ?')
+      .bind(player.id, level.number)
+      .first<{ messages_used: number; hints_used: number; solved_at: string | null }>()
+  : null;
+if (!progress?.solved_at) return Astro.redirect(`/play/${level.number}`);
+
+const next = getLevel(level.number + 1);
+const { debrief } = level;
+const points = levelScore(progress.messages_used, progress.hints_used);
+const fmt = (n: number) => n.toLocaleString('en-GB');
+---
+<Base title={`Level ${level.number} cleared · Break the AI`}>
+  <section class="head wrap" aria-labelledby="debrief-title">
+    <span class="sticker">+{fmt(points)} pts</span>
+    <h1 id="debrief-title">Level {level.number} cleared</h1>
+    <p class="lead">{level.product}.</p>
+
+    <dl class="tally">
+      <div><dt class="label">Level</dt><dd>{fmt(LEVEL_POINTS)}</dd></div>
+      <div><dt class="label">{progress.messages_used} messages</dt><dd>−{fmt(progress.messages_used * MESSAGE_COST)}</dd></div>
+      <div><dt class="label">{progress.hints_used} hints</dt><dd>−{fmt(progress.hints_used * HINT_COST)}</dd></div>
+      <div class="tally-total"><dt class="label">You scored</dt><dd>{fmt(points)}</dd></div>
+    </dl>
+  </section>
+
+  <section class="parts wrap" aria-label="What happened">
+    <div class="part">
+      <h2>What you did</h2>
+      <p>{debrief.attack}</p>
+    </div>
+    <div class="part">
+      <h2>Why it worked</h2>
+      <p>{debrief.why}</p>
+    </div>
+    <div class="part part--fix">
+      <h2>The fix</h2>
+      <p>{debrief.fix}</p>
+    </div>
+    <ul class="owasp" aria-label="OWASP LLM Top 10">
+      {debrief.owasp.map((item) => <li class="sticker">{item}</li>)}
+    </ul>
+  </section>
+
+  <section class="on wrap" aria-labelledby="on-title">
+    <hr class="dots" />
+    {next ? (
+      <>
+        <h2 id="on-title" class="visually-hidden">Next</h2>
+        <div class="on-row">
+          <a class="pill pill--big" href={`/play/${next.number}`}>Level {next.number}: {next.short}</a>
+          <a class="pill pill--quiet" href="/">Level select</a>
+        </div>
+      </>
+    ) : (
+      <>
+        <h2 id="on-title" class="on-title">All {levels.length} levels cleared</h2>
+        <p class="on-note">More levels are coming. Your report shows your score, never what you typed.</p>
+        <div class="on-row">
+          <button type="button" class="pill pill--big" data-report>Get your report</button>
+          <a class="pill pill--quiet" href="/">Level select</a>
+        </div>
+        <p class="on-note" data-report-status role="status"></p>
+      </>
+    )}
+  </section>
+</Base>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('[data-report]');
+  button?.addEventListener('click', async () => {
+    button.disabled = true;
+    const res = await fetch('/api/report', { method: 'POST' });
+    const data = (await res.json()) as { id?: string };
+    if (res.ok && data.id) {
+      location.href = `/report/${data.id}`;
+      return;
+    }
+    document.querySelector('[data-report-status]')!.textContent = 'Clear every level first.';
+    button.disabled = false;
+  });
+</script>
+
+<style>
+  .head {
+    padding-top: clamp(24px, 6vh, 72px);
+  }
+
+  .head h1 {
+    margin-top: 20px;
+    font-size: var(--step-hero);
+    line-height: 0.86;
+  }
+
+  .lead {
+    margin-top: 20px;
+    font-size: var(--step-lead);
+    color: var(--muted);
+  }
+
+  .tally {
+    margin: 36px 0 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .tally div {
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: var(--deep);
+  }
+
+  .tally dd {
+    margin: 8px 0 0;
+    font: 800 1.75rem / 1 var(--display);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tally-total {
+    background: var(--accent) !important;
+    color: var(--accent-ink);
+  }
+
+  .tally-total .label {
+    color: var(--accent-ink);
+  }
+
+  .parts {
+    padding-top: 64px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .part {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+    gap: 24px;
+    padding: clamp(20px, 3vw, 36px);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .part h2 {
+    font-size: var(--step-lead);
+    line-height: 1.05;
+  }
+
+  .part p {
+    font-size: var(--step-lead);
+    line-height: 1.4;
+    max-width: 40ch;
+  }
+
+  .part--fix {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .owasp {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .owasp .sticker {
+    rotate: 0deg;
+  }
+
+  .owasp .sticker:nth-child(odd) {
+    rotate: -3deg;
+  }
+
+  .on {
+    padding-block: 56px 48px;
+    display: grid;
+    gap: 24px;
+  }
+
+  .on-title {
+    font-size: var(--step-head);
+  }
+
+  .on-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .on-note {
+    color: var(--muted);
+  }
+
+  @media (max-width: 760px) {
+    .tally {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .part {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .on-row .pill {
+      width: 100%;
+    }
+  }
+</style>

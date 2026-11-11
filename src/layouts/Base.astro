@@ -1,0 +1,75 @@
+---
+import '../styles/global.css';
+
+type Props = { title: string; description?: string; bare?: boolean };
+const {
+  title,
+  description = 'A browser game: trick a fictional bank’s AI into leaking its secrets, then learn the fix that would have stopped you.',
+  bare = false,
+} = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#2b1055" />
+    <link rel="preload" href="/fonts/unbounded.woff2" as="font" type="font/woff2" crossorigin />
+    <script is:inline>document.documentElement.classList.add('js');</script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    {!bare && (
+      <header class="top wrap">
+        <a class="mark" href="/">Break the AI</a>
+        <a class="top-link link" href="/#levels">Levels</a>
+      </header>
+    )}
+    <main id="main">
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  .skip {
+    position: absolute;
+    left: var(--margin);
+    top: -100px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    padding: 12px 16px;
+    border-radius: 999px;
+    z-index: 30;
+  }
+  .skip:focus {
+    top: 12px;
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 72px;
+  }
+
+  .mark {
+    font: 800 1rem / 1 var(--display);
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    transition: color 160ms var(--ease-out);
+  }
+
+  .mark:hover {
+    color: var(--accent);
+  }
+
+  .top-link {
+    font: 600 0.8125rem / 1 var(--display);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+</style>

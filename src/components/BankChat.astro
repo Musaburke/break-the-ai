@@ -1,0 +1,64 @@
+---
+// One of Fernleigh's products as the bank itself would ship it. Used two ways:
+// on /play it's the live chat (with `live`), on the home page a still sample of the same product.
+import '../styles/bank.css';
+import { bank } from '../data/bank';
+import { MAX_MESSAGE_LENGTH } from '../engine/budget';
+
+type Msg = { who: 'bot' | 'you' | 'system'; text: string };
+type Props = {
+  title: string;
+  subtitle: string;
+  greeting: string;
+  sample?: Msg[];
+  live?: boolean;
+  label: string;
+};
+const { title, subtitle, greeting, sample = [], live = false, label } = Astro.props;
+---
+<div data-ui="bank" class:list={['bank-chat', { 'bank-chat--live': live }]} role={live ? undefined : 'img'} aria-label={live ? undefined : label}>
+  <div class="bank-head">
+    <span class="bank-logo" aria-hidden="true">{bank.name[0]}</span>
+    <div>
+      <div class="bank-title">{title}</div>
+      <div class="bank-sub">{subtitle}</div>
+    </div>
+  </div>
+  <ol class="bank-log" data-log aria-live={live ? 'polite' : undefined} aria-label={live ? 'Conversation' : undefined}>
+    <li class="bank-msg bank-msg--bot">{greeting}</li>
+    {sample.map((m) => (
+      <li class={`bank-msg bank-msg--${m.who}`}>{m.text}</li>
+    ))}
+  </ol>
+  {live ? (
+    <form class="bank-form" data-form>
+      <label for="message" class="visually-hidden">Message {title}</label>
+      <textarea id="message" name="message" rows="1" maxlength={MAX_MESSAGE_LENGTH} placeholder="Type a message" required></textarea>
+      <button class="bank-send" type="submit">Send</button>
+    </form>
+  ) : (
+    <div class="bank-form" aria-hidden="true">
+      <div class="bank-fake-input">Type a message</div>
+      <span class="bank-send bank-send--still">Send</span>
+    </div>
+  )}
+</div>
+
+<style>
+  .bank-chat {
+    height: 100%;
+  }
+  .bank-fake-input {
+    flex: 1;
+    height: 44px;
+    padding: 11px 12px;
+    border: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own input, inside data-ui */
+    border-radius: var(--b-radius-control);
+    background: var(--b-ground);
+    color: var(--b-muted);
+  }
+  .bank-send--still {
+    display: grid;
+    place-items: center;
+  }
+</style>

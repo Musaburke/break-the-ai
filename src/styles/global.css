@@ -1,0 +1,225 @@
+/* The shell: a poster-loud game in purple. Deep plum ground, lilac-white type, acid lime for every "go"
+   (buttons, the meter, the Leaked moment), hot pink for small stickers. Broad heavy uppercase headlines
+   (Unbounded) over plain text (Geist). Musa chose this direction on 2026-11-10 (Hungry Tiger's poster energy
+   plus a Krillion-style HUD); it overrides the taste house rules on purple, small uppercase HUD labels,
+   pill buttons and dotted rules for this project only. See AGENTS.md. */
+
+@font-face {
+  font-family: 'Unbounded';
+  src: url('/fonts/unbounded.woff2') format('woff2');
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root {
+  --bg: #2b1055;
+  --deep: #1c0a3a;
+  --surface: #3b1a6e;
+  --surface-2: #4a2386;
+  --ink: #f3eaff;
+  --muted: #cbb8ec;
+  --accent: #c6f432;
+  --accent-press: #b3e01c;
+  --accent-ink: #1c0a3a;
+  --pink: #ff4fa3;
+  --pink-ink: #1c0a3a;
+
+  --display: 'Unbounded', system-ui, sans-serif;
+  --text: 'Geist', system-ui, sans-serif;
+  --step-small: 0.875rem;
+  --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --step-head: clamp(2rem, 1.2rem + 3.4vw, 4.25rem);
+  --step-hero: clamp(3rem, 1rem + 9vw, 10.5rem);
+
+  --margin: clamp(16px, 2.2vw, 28px);
+  --radius: 14px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: var(--step-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: var(--step-head);
+}
+
+h3 {
+  font-size: var(--step-lead);
+  line-height: 1.05;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.wrap {
+  padding-inline: var(--margin);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* HUD and box labels: small uppercase, Krillion-style. */
+.label {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The printed perforation between parts of the page: round dots, drawn as an SVG tile. */
+.dots {
+  height: 4px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4'%3E%3Ccircle cx='2' cy='2' r='2' fill='%23c6f432'/%3E%3C/svg%3E") repeat-x;
+  opacity: 0.55;
+  border: 0;
+  margin: 0;
+}
+
+/* The one button shape: a chunky pill. Lime is "go"; the quiet one is a raised purple. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  min-height: 56px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 800 0.9375rem / 1 var(--display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 180ms var(--ease-spring),
+    background-color 160ms var(--ease-out);
+}
+
+.pill:hover {
+  background: var(--accent-press);
+  transform: translateY(-2px);
+}
+
+.pill:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+.pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+.pill--quiet {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.pill--quiet:hover {
+  background: #5a2ca0;
+}
+
+.pill--big {
+  min-height: 72px;
+  padding: 0 44px;
+  font-size: 1.25rem;
+}
+
+/* A small tilted pink sticker. */
+.sticker {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--pink);
+  color: var(--pink-ink);
+  font: 800 0.8125rem / 1 var(--display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  rotate: -6deg;
+}
+
+.link {
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+  transition: color 160ms var(--ease-out);
+}
+
+.link:hover {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill,
+  .link {
+    transition: none;
+  }
+  .pill:hover {
+    transform: none;
+  }
+}

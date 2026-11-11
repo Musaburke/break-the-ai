@@ -1,0 +1,181 @@
+/* The bank: Fernleigh's own products, the things the player attacks. A different brand from the shell on purpose,
+   so the player always knows which is them and which is the target.
+   Structure from the app sheet (Achromatic ledger, seed 800812825): Geist, 8/6px radii, sparse, no shadows at rest.
+   Palette adapted to the bank's brand: a sage ground (one of the sheet's own suggestions) and forest green, never red. */
+
+[data-ui='bank'] {
+  --b-ground: #f2f5f2;
+  --b-surface: #ffffff;
+  --b-raised: #e6ece7;
+  --b-border: #dbe3dc;
+  --b-text: #10231a;
+  --b-muted: #5a6b61;
+  --b-brand: #1f5a43;
+  --b-brand-ink: #ffffff;
+  --b-bubble: #e3ede6;
+  --b-radius-card: 8px;
+  --b-radius-control: 6px;
+
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  color: var(--b-text);
+  background: var(--b-ground);
+  border: 1px solid var(--b-border);
+  border-radius: var(--b-radius-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--b-brand);
+  color: var(--b-brand-ink);
+}
+
+.bank-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--b-brand-ink);
+  color: var(--b-brand);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex: none;
+}
+
+.bank-title {
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.bank-sub {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.bank-log {
+  list-style: none;
+  margin: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.bank-msg {
+  max-width: 84%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bank-msg--bot {
+  background: var(--b-surface);
+  border: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own chat chrome, inside data-ui */
+  border-bottom-left-radius: 4px;
+  align-self: flex-start;
+}
+
+.bank-msg--you {
+  background: var(--b-brand);
+  color: var(--b-brand-ink);
+  border-bottom-right-radius: 4px;
+  align-self: flex-end;
+}
+
+.bank-msg--system {
+  align-self: center;
+  max-width: 100%;
+  font-size: 13px;
+  color: var(--b-muted);
+  background: none;
+  padding: 2px 8px;
+}
+
+.bank-msg mark {
+  background: var(--accent, #c6f432);
+  color: var(--accent-ink, #1c0a3a);
+  padding: 0 3px;
+}
+
+.bank-typing {
+  color: var(--b-muted);
+  font-size: 13px;
+}
+
+.bank-form {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--b-surface);
+  border-top: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own chat chrome, inside data-ui */
+}
+
+.bank-form textarea {
+  flex: 1;
+  resize: none;
+  min-height: 44px;
+  max-height: 140px;
+  padding: 11px 12px;
+  border: 1px solid var(--b-border);
+  border-radius: var(--b-radius-control);
+  background: var(--b-ground);
+  color: var(--b-text);
+  font: inherit;
+}
+
+.bank-form textarea:focus-visible {
+  outline: 2px solid var(--b-brand);
+  outline-offset: 1px;
+}
+
+.bank-send {
+  min-width: 72px;
+  height: 44px;
+  align-self: flex-end;
+  border: 0;
+  border-radius: var(--b-radius-control);
+  background: var(--b-brand);
+  color: var(--b-brand-ink);
+  font: 500 15px/1 'Geist', system-ui, sans-serif;
+  cursor: pointer;
+  transition:
+    transform 140ms ease-out,
+    background-color 140ms ease-out;
+}
+
+.bank-send:hover {
+  background: #17473a;
+}
+
+.bank-send:active {
+  transform: scale(0.96);
+}
+
+.bank-send:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.bank-send:focus-visible {
+  outline: 2px solid var(--b-brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bank-send {
+    transition: none;
+  }
+}

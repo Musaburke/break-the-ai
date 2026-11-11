@@ -1,0 +1,29 @@
+// One Cloudflare Worker: prerendered pages are served from dist/ as static assets,
+// everything else (the /api routes) runs through the Astro server entrypoint.
+// Free plan only. No card on the account, so Workers AI fails with 429 at the daily cap instead of billing.
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "break-the-ai",
+	"main": "@astrojs/cloudflare/entrypoints/server",
+	"compatibility_date": "2026-11-10",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist"
+	},
+	"ai": {
+		"binding": "AI",
+		"remote": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "break-the-ai",
+			"database_id": "71368ab6-0c76-4bfe-8088-a7df63dbd213",
+			"migrations_dir": "migrations"
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}

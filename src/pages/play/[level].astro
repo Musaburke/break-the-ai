@@ -1,0 +1,553 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Base from '../../layouts/Base.astro';
+import BankChat from '../../components/BankChat.astro';
+import { bank } from '../../data/bank';
+import { upcoming } from '../../data/roadmap';
+import { MESSAGES_PER_LEVEL } from '../../engine/budget';
+import { HINT_COST, LEVEL_POINTS, MESSAGE_COST } from '../../engine/score';
+import { levels } from '../../levels';
+
+export const getStaticPaths = (() => levels.map((level) => ({ params: { level: String(level.number) }, props: { level } }))) satisfies GetStaticPaths;
+
+// Only public fields reach the page. The system prompt never leaves the server.
+const { level } = Astro.props;
+const chatTitle = level.number <= 2 ? `${bank.assistant} · ${bank.name}` : 'Help centre';
+const chatSub = level.number <= 2 ? 'Customer support' : `${bank.name} app`;
+const initials = bank.securityLead.split(' ').map((w) => w[0]).join('');
+const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.map((u) => ({ n: u.number, live: false }))];
+---
+<Base title={`Level ${level.number}: ${level.short} · Break the AI`} bare>
+  <div class="game" data-chat data-level={level.number} data-per-level={MESSAGES_PER_LEVEL} data-hints={level.hints.length}>
+    <header class="hud wrap">
+      <a class="hud-home" href="/" aria-label="Break the AI: level select">Break the AI</a>
+
+      <div class="hud-level">
+        <ol class="pips" aria-label="Levels">
+          {pips.map((p) => (
+            <li class:list={['pip', { 'pip--current': p.n === level.number, 'pip--locked': !p.live }]} data-pip={p.n}>
+              <span class="visually-hidden">Level {p.n}{p.n === level.number ? ', current' : ''}{!p.live ? ', coming soon' : ''}</span>
+            </li>
+          ))}
+        </ol>
+        <p class="label">Level {level.number} of {pips.length} · {level.short}</p>
+      </div>
+
+      <div class="hud-meter">
+        <div class="meter" aria-hidden="true">
+          {Array.from({ length: MESSAGES_PER_LEVEL }, () => <span class="meter-bar"></span>)}
+        </div>
+        <p class="label" data-left role="status">{MESSAGES_PER_LEVEL} messages left</p>
+      </div>
+
+      <div class="hud-box">
+        <p class="label">Level pts</p>
+        <p class="hud-num hud-num--lime" data-level-points>{LEVEL_POINTS.toLocaleString('en-GB')}</p>
+      </div>
+      <div class="hud-box">
+        <p class="label">Score</p>
+        <p class="hud-num" data-score>0</p>
+      </div>
+    </header>
+
+    <div class="arena wrap">
+      <section class="task" aria-labelledby="task-title">
+        <details class="task-part ctx" open data-ctx>
+          <summary class="label">Context</summary>
+          <article class="mail" aria-label={`Email from ${bank.securityLead}`}>
+            <header class="mail-head">
+              <span class="mail-avatar" aria-hidden="true">{initials}</span>
+              <div class="mail-meta">
+                <p class="mail-from">{bank.securityLead} <span class="mail-role">Security, {bank.name}</span></p>
+                <p class="mail-to">To: you, red team</p>
+              </div>
+            </header>
+            <p class="mail-subject">{level.subject}</p>
+            <p class="mail-body">{level.brief}</p>
+          </article>
+        </details>
+        <hr class="dots" />
+        <div class="task-part">
+          <p class="label">Your task</p>
+          <h1 id="task-title" class="task-goal">{level.goal}</h1>
+          <p class="task-clue"><span class="sticker">Clue</span> {level.clue}</p>
+        </div>
+        <hr class="dots" />
+        <div class="task-part" data-hints>
+          <p class="label">Hints −{HINT_COST} pts · messages −{MESSAGE_COST}</p>
+          <ol class="hint-list" data-hint-list></ol>
+          <button type="button" class="pill pill--quiet" data-hint>Get hint 1</button>
+        </div>
+
+        {level.win === 'submit' && (
+          <>
+            <hr class="dots" />
+            <form class="task-part submit" data-submit>
+              <label class="label" for="secret">Found the PIN? Type it here</label>
+              <div class="submit-row">
+                <input id="secret" name="secret" autocomplete="off" spellcheck="false" maxlength="64" required />
+                <button type="submit" class="pill">Check</button>
+              </div>
+              <p class="submit-status" data-submit-status role="status"></p>
+            </form>
+          </>
+        )}
+      </section>
+
+      <section class="target" aria-label={`The product: ${level.product}`}>
+        <BankChat title={chatTitle} subtitle={chatSub} greeting={level.greeting} live label={level.product} />
+      </section>
+    </div>
+  </div>
+
+  <section class="leaked" data-leaked hidden aria-labelledby="leaked-title" tabindex="-1">
+    <div class="leaked-field">
+      <span class="sticker leaked-points" data-leaked-points></span>
+      <h2 id="leaked-title" class="leaked-word">Leaked</h2>
+      <p class="leaked-secret" data-leaked-secret></p>
+      <div class="leaked-actions">
+        <a class="pill pill--dark" href={`/debrief/${level.number}`}>Read the debrief</a>
+        <button type="button" class="pill pill--ghost" data-leaked-close>Back to the chat</button>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { mountChat } from '../../scripts/chat';
+  mountChat(document.querySelector<HTMLElement>('[data-chat]')!);
+  // On a phone the context folds away so the chat stays on screen; the task and hints stay visible.
+  if (matchMedia('(max-width: 860px)').matches) document.querySelector<HTMLDetailsElement>('[data-ctx]')?.removeAttribute('open');
+</script>
+
+<style>
+  .game {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HUD: home, level pips, the messages meter, this level's points, total score. */
+  .hud {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto;
+    align-items: center;
+    gap: 16px 28px;
+    padding-block: 14px;
+  }
+
+  .hud-home {
+    white-space: nowrap;
+    font: 800 0.9375rem / 1 var(--display);
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: color 160ms var(--ease-out);
+  }
+
+  .hud-home:hover {
+    color: var(--accent);
+  }
+
+  .hud-level {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    justify-self: center;
+  }
+
+  .pips {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 6px;
+  }
+
+  .pip {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    background: var(--surface-2);
+  }
+
+  .pip--locked {
+    background: var(--deep);
+  }
+
+  .pip[data-solved] {
+    background: var(--accent);
+  }
+
+  .pip--current {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .hud-meter {
+    display: grid;
+    gap: 6px;
+    min-width: 200px;
+  }
+
+  .meter {
+    display: flex;
+    gap: 3px;
+    height: 14px;
+  }
+
+  .meter-bar {
+    flex: 1;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: background-color 300ms var(--ease-out);
+  }
+
+  .meter-bar[data-spent] {
+    background: var(--surface-2);
+  }
+
+  .hud-box {
+    white-space: nowrap;
+    min-width: 128px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: var(--deep);
+    text-align: right;
+  }
+
+  .hud-num {
+    margin-top: 4px;
+    font: 800 1.5rem / 1 var(--display);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hud-num--lime {
+    color: var(--accent);
+  }
+
+  /* Arena: task box on the left, the bank's product on the right. */
+  .arena {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(300px, 4fr) minmax(0, 7fr);
+    gap: 20px;
+    padding-bottom: 20px;
+    min-height: 0;
+  }
+
+  .task {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    align-self: start;
+  }
+
+  .task-part {
+    display: grid;
+    gap: 10px;
+  }
+
+  /* The brief is an email from the bank's security lead, so it reads as a message, not page text. */
+  .mail {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--deep);
+  }
+
+  .mail-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mail-avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--pink);
+    color: var(--pink-ink);
+    font: 800 0.875rem / 1 var(--display);
+  }
+
+  .mail-meta {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .mail-from {
+    font-weight: 600;
+  }
+
+  .mail-role,
+  .mail-to {
+    font-size: var(--step-small);
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .mail-role::before {
+    content: '· ';
+  }
+
+  .mail-subject {
+    font-weight: 600;
+  }
+
+  .task-clue {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .task-clue .sticker {
+    flex: none;
+    rotate: -4deg;
+  }
+
+  .ctx summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 24px;
+  }
+
+  .ctx summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .ctx summary::after {
+    content: '+';
+    font-size: 1.25rem;
+    color: var(--accent);
+    transition: rotate 200ms var(--ease-out);
+  }
+
+  .ctx[open] summary::after {
+    rotate: 45deg;
+  }
+
+  .ctx summary:hover {
+    color: var(--ink);
+  }
+
+  .ctx[open] {
+    display: grid;
+    gap: 10px;
+  }
+
+  .task-goal {
+    font-size: var(--step-lead);
+    line-height: 1.1;
+    color: var(--accent);
+  }
+
+  .hint-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+
+  .hint-list li {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--deep);
+  }
+
+  .hint-list:empty {
+    display: none;
+  }
+
+  [data-hint] {
+    justify-self: start;
+  }
+
+  .submit-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .submit input {
+    flex: 1;
+    min-width: 0;
+    min-height: 56px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--deep);
+    color: var(--ink);
+    font: 700 1rem / 1 var(--display);
+    text-transform: uppercase;
+  }
+
+  .submit-status {
+    color: var(--muted);
+  }
+
+  .target {
+    position: sticky;
+    top: 12px;
+    height: calc(100svh - 120px);
+    min-height: 480px;
+  }
+
+  /* The leak: a lime field sweeps over the screen, then the word, the points and the secret. */
+  .leaked {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    overflow: hidden;
+  }
+
+  .leaked:focus {
+    outline: none;
+  }
+
+  .leaked-field {
+    height: 100%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: 24px;
+    padding: var(--margin);
+    padding-bottom: clamp(32px, 8vh, 96px);
+    animation: sweep 520ms var(--ease-out) both;
+  }
+
+  .leaked-points {
+    font-size: 1.25rem;
+    padding: 12px 22px;
+    animation: pop 480ms var(--ease-spring) 520ms both;
+  }
+
+  .leaked-word {
+    font-size: clamp(4.5rem, 19vw, 20rem);
+    line-height: 0.8;
+    letter-spacing: -0.04em;
+    animation: rise 520ms var(--ease-out) 260ms both;
+  }
+
+  .leaked-secret {
+    font: 800 var(--step-lead) / 1.1 var(--display);
+    animation: rise 520ms var(--ease-out) 360ms both;
+  }
+
+  .leaked-secret:empty,
+  .leaked-points:empty {
+    display: none;
+  }
+
+  .leaked-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    animation: rise 520ms var(--ease-out) 440ms both;
+  }
+
+  .pill--dark {
+    background: var(--accent-ink);
+    color: var(--accent);
+  }
+
+  .pill--dark:hover {
+    background: var(--bg);
+  }
+
+  .pill--ghost {
+    background: transparent;
+    color: var(--accent-ink);
+    box-shadow: inset 0 0 0 2px var(--accent-ink);
+  }
+
+  .pill--ghost:hover {
+    background: rgba(28, 10, 58, 0.08);
+  }
+
+  @keyframes sweep {
+    from {
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .hud {
+      grid-template-columns: 1fr auto auto;
+    }
+    .hud-level {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: start;
+    }
+    .hud-meter {
+      grid-column: 1 / -1;
+      grid-row: 3;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .arena {
+      grid-template-columns: 1fr;
+    }
+    .target {
+      position: static;
+      height: 78svh;
+      min-height: 440px;
+    }
+    .hud-box {
+      min-width: 0;
+      padding: 8px 12px;
+    }
+    .hud-num {
+      font-size: 1.125rem;
+    }
+    .hud-home {
+      font-size: 0.8125rem;
+    }
+    .task {
+      padding: 18px;
+      gap: 14px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .leaked-field,
+    .leaked-word,
+    .leaked-secret,
+    .leaked-actions,
+    .leaked-points {
+      animation: none;
+    }
+    .meter-bar {
+      transition: none;
+    }
+  }
+</style>

@@ -1,0 +1,303 @@
+---
+import Base from '../layouts/Base.astro';
+import { upcoming } from '../data/roadmap';
+import { MESSAGES_PER_RUN } from '../engine/budget';
+import { LEVEL_POINTS } from '../engine/score';
+import { levels } from '../levels';
+
+// One screen to get in, one short strip for the curious. It's a game: the landing page is a title screen.
+const tiles = [
+  ...levels.map((l) => ({ number: l.number, short: l.short, live: true })),
+  ...upcoming.map((u) => ({ number: u.number, short: u.short, live: false })),
+];
+---
+<Base title="Break the AI: trick a bank's AI into leaking its secrets">
+  <section class="title wrap" aria-labelledby="title">
+    <div class="title-head">
+      <span class="sticker title-sticker">{levels.length} levels live</span>
+      <h1 id="title">Break the AI</h1>
+      <p class="title-lead">Trick a bank's AI chatbots into leaking their secrets. After each one, learn the fix.</p>
+      <div class="title-play">
+        <button type="button" class="pill pill--big" data-start>Play</button>
+        <p class="title-status" data-status role="status">{MESSAGES_PER_RUN} messages. No sign-up.</p>
+      </div>
+    </div>
+
+    <div class="levels" id="levels">
+      <hr class="dots" />
+      <h2 class="visually-hidden">Levels</h2>
+      <ol class="tiles">
+        {tiles.map((t) => (
+          <li>
+            {t.live ? (
+              <a class:list={['tile', { 'tile--next': t.number === 1 }]} href={`/play/${t.number}`} data-tile={t.number}>
+                <span class="tile-num">{t.number}</span>
+                <span class="tile-name">{t.short}</span>
+                <span class="tile-state label" data-tile-state>{LEVEL_POINTS.toLocaleString('en-GB')} pts</span>
+              </a>
+            ) : (
+              <span class="tile tile--locked" aria-disabled="true">
+                <span class="tile-num">{t.number}</span>
+                <span class="tile-name">{t.short}</span>
+                <span class="tile-state label">Soon</span>
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="how wrap" aria-labelledby="how-title">
+    <h2 id="how-title" class="visually-hidden">How it works</h2>
+    <div class="how-grid">
+      <div>
+        <h3>Read the brief</h3>
+        <p>Security tells you what the bank shipped and what to get out of it.</p>
+      </div>
+      <div>
+        <h3>Break the bot</h3>
+        <p>Chat until it slips. Fewer messages and hints means more points.</p>
+      </div>
+      <div>
+        <h3>Learn the fix</h3>
+        <p>Each debrief names the attack and the defence that would have stopped you.</p>
+      </div>
+    </div>
+    <hr class="dots" />
+    <p class="small">Free, with a daily limit. What you type is kept for 30 days against an anonymous ID, to tune the levels. Fernleigh Bank is made up.</p>
+  </section>
+</Base>
+
+<script>
+  type LevelProgress = { level: number; solved: number; points: number };
+
+  const play = document.querySelector<HTMLButtonElement>('[data-start]')!;
+  const status = document.querySelector<HTMLElement>('[data-status]')!;
+  const tiles = [...document.querySelectorAll<HTMLElement>('[data-tile]')];
+  let next = 1;
+
+  fetch('/api/status')
+    .then((res) => res.json() as Promise<{ runsLeft: number }>)
+    .then(({ runsLeft }) => {
+      if (!runsLeft) status.textContent = 'Full for today. New runs at midnight UTC.';
+    })
+    .catch(() => {});
+
+  // Returning players: score so far, solved tiles, and Play becomes Continue at the first unsolved level.
+  fetch('/api/progress')
+    // Always read the body, even on 401: an unread body keeps the request open.
+    .then(async (res) => {
+      const data = (await res.json()) as { messagesLeft: number; score: number; levels: LevelProgress[] };
+      return res.ok ? data : null;
+    })
+    .then((data) => {
+      if (!data) return;
+      const solved = new Map(data.levels.filter((l) => l.solved).map((l) => [l.level, l.points]));
+      for (const tile of tiles) {
+        const n = Number(tile.dataset.tile);
+        const points = solved.get(n);
+        if (points !== undefined) {
+          tile.classList.add('tile--solved');
+          tile.querySelector('[data-tile-state]')!.textContent = `Cleared · ${points} pts`;
+        }
+      }
+      next = tiles.map((t) => Number(t.dataset.tile)).find((n) => !solved.has(n)) ?? tiles.length;
+      play.textContent = solved.size ? `Continue: level ${next}` : 'Play';
+      status.textContent = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left`;
+      tiles.forEach((t) => t.classList.toggle('tile--next', Number(t.dataset.tile) === next));
+    })
+    .catch(() => {});
+
+  play.addEventListener('click', async () => {
+    play.disabled = true;
+    const res = await fetch('/api/run', { method: 'POST' });
+    if (res.ok || res.status === 409) {
+      location.href = res.ok ? `/play/${next}` : '/full';
+      return;
+    }
+    status.textContent = 'Something went wrong. Try again.';
+    play.disabled = false;
+  });
+</script>
+
+<style>
+  .title {
+    min-height: calc(100svh - 72px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 32px;
+    padding-bottom: 28px;
+  }
+
+  .title-head {
+    position: relative;
+    padding-top: clamp(16px, 6vh, 72px);
+  }
+
+  .title-sticker {
+    position: absolute;
+    top: clamp(0px, 3vh, 40px);
+    right: 6%;
+    z-index: 1;
+  }
+
+  .title h1 {
+    font-size: var(--step-hero);
+    line-height: 0.86;
+    letter-spacing: -0.03em;
+  }
+
+  .title-lead {
+    margin-top: 28px;
+    max-width: 30ch;
+    font-size: var(--step-lead);
+    line-height: 1.3;
+  }
+
+  .title-play {
+    margin-top: 36px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 24px;
+  }
+
+  .title-status {
+    color: var(--muted);
+  }
+
+  .levels {
+    display: grid;
+    gap: 24px;
+  }
+
+  .tiles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    height: 100%;
+    min-height: 132px;
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+    transition:
+      transform 180ms var(--ease-spring),
+      background-color 160ms var(--ease-out);
+  }
+
+  a.tile:hover {
+    background: var(--surface-2);
+    transform: translateY(-4px);
+  }
+
+  a.tile:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .tile-num {
+    font: 800 2.5rem / 1 var(--display);
+  }
+
+  .tile-name {
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .tile-state {
+    margin-top: auto;
+  }
+
+  .tile--next {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .tile--next .tile-state {
+    color: var(--accent-ink);
+  }
+
+  a.tile--next:hover {
+    background: var(--accent-press);
+  }
+
+  .tile--solved .tile-num {
+    color: var(--accent);
+  }
+
+  .tile--locked {
+    background: var(--deep);
+    color: var(--muted);
+  }
+
+  .how {
+    padding-block: 48px 40px;
+  }
+
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .how-grid h3 {
+    margin-bottom: 10px;
+    color: var(--accent);
+  }
+
+  .small {
+    margin-top: 20px;
+    font-size: var(--step-small);
+    color: var(--muted);
+    max-width: 70ch;
+  }
+
+  @media (max-width: 860px) {
+    .tiles {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .how-grid {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    .title-sticker {
+      position: static;
+      margin-bottom: 16px;
+    }
+    .title-play .pill {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .tiles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .tile {
+      min-height: 112px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tile {
+      transition: none;
+    }
+    a.tile:hover {
+      transform: none;
+    }
+  }
+</style>
