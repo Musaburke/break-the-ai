@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { env } from 'cloudflare:workers';
+import { env, waitUntil } from 'cloudflare:workers';
 import { HISTORY_TURNS, MAX_MESSAGE_LENGTH, MAX_REPLY_TOKENS, MESSAGES_PER_LEVEL, utcDay } from '../../engine/budget';
 import { levelSecret } from '../../engine/crypto';
 import { blockedInput, filteredReply, shownReply } from '../../engine/defences';
@@ -96,56 +96,73 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   }
 
   const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const emit = (event: string, data: unknown) => controller.enqueue(encoder.encode(sseEvent(event, data)));
-      let raw = '';
+  // The reply is read to the end and logged even if the player leaves mid-reply (waitUntil keeps the Worker
+  // alive), so it's there when they come back. Sending to a page that has gone is simply skipped.
+  let open = true;
+  const respond = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    const emit = (event: string, data: unknown) => {
+      if (!open) return;
       try {
-        if (upstream) {
-          // With an output filter nothing can be streamed: the secret would reach the browser before the
-          // filter saw the whole reply. Those levels collect the reply first and send it in one piece.
-          const parser = createSseParser((text) => {
-            raw += text;
-            if (!level.outputFilter) emit('t', text);
-          });
-          const reader = upstream.getReader();
-          for (;;) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            parser.push(value);
-          }
-          parser.end();
-        }
-
-        const shown = blocked ? filteredReply(level) : shownReply(level, raw, secret);
-        if (blocked) emit('blocked', blocked);
-        if (blocked || level.outputFilter) emit('t', shown);
-
-        // Win check on the server. Filtered levels are won by submitting the decoded secret instead.
-        const solved = level.win === 'reply' && !blocked && leaks(raw, secret);
-        const ts = new Date().toISOString();
-        // The log keeps what the player saw, so the history sent back to the model matches the chat.
-        const writes = [
-          db.prepare('INSERT INTO events (player_id, level, ts, kind, text) VALUES (?, ?, ?, ?, ?)').bind(player.id, level.number, ts, 'reply', shown),
-        ];
-        if (blocked) writes.push(db.prepare("INSERT INTO events (player_id, level, ts, kind) VALUES (?, ?, ?, 'blocked')").bind(player.id, level.number, ts));
-        if (solved) {
-          writes.push(
-            db.prepare('UPDATE progress SET solved_at = ? WHERE player_id = ? AND level = ?').bind(ts, player.id, level.number),
-            db.prepare("INSERT INTO events (player_id, level, ts, kind) VALUES (?, ?, ?, 'solve')").bind(player.id, level.number, ts),
-          );
-        }
-        await db.batch(writes);
-        const levelLeft = MESSAGES_PER_LEVEL - (counted.results[0]?.messages_used ?? MESSAGES_PER_LEVEL);
-        // On a win the secret goes back so the page can highlight it: the player has just extracted it anyway.
-        const row = counted.results[0];
-        const points = solved && row ? levelScore(row.messages_used, row.hints_used, row.clue_seen === 1) : undefined;
-        emit('done', { solved, messagesLeft: spent.messages_left, levelLeft, ...(solved ? { secret, points } : {}) });
+        controller.enqueue(encoder.encode(sseEvent(event, data)));
       } catch {
-        emit('error', 'stream-failed');
-      } finally {
-        controller.close();
+        open = false;
       }
+    };
+    let raw = '';
+    try {
+      if (upstream) {
+        // With an output filter nothing can be streamed: the secret would reach the browser before the
+        // filter saw the whole reply. Those levels collect the reply first and send it in one piece.
+        const parser = createSseParser((text) => {
+          raw += text;
+          if (!level.outputFilter) emit('t', text);
+        });
+        const reader = upstream.getReader();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          parser.push(value);
+        }
+        parser.end();
+      }
+
+      const shown = blocked ? filteredReply(level) : shownReply(level, raw, secret);
+      if (blocked) emit('blocked', blocked);
+      if (blocked || level.outputFilter) emit('t', shown);
+
+      // Win check on the server. Filtered levels are won by submitting the decoded secret instead.
+      const solved = level.win === 'reply' && !blocked && leaks(raw, secret);
+      const ts = new Date().toISOString();
+      // The log keeps what the player saw, so the history sent back to the model matches the chat.
+      const writes = [
+        db.prepare('INSERT INTO events (player_id, level, ts, kind, text) VALUES (?, ?, ?, ?, ?)').bind(player.id, level.number, ts, 'reply', shown),
+      ];
+      if (blocked) writes.push(db.prepare("INSERT INTO events (player_id, level, ts, kind) VALUES (?, ?, ?, 'blocked')").bind(player.id, level.number, ts));
+      if (solved) {
+        writes.push(
+          db.prepare('UPDATE progress SET solved_at = ? WHERE player_id = ? AND level = ?').bind(ts, player.id, level.number),
+          db.prepare("INSERT INTO events (player_id, level, ts, kind) VALUES (?, ?, ?, 'solve')").bind(player.id, level.number, ts),
+        );
+      }
+      await db.batch(writes);
+      const levelLeft = MESSAGES_PER_LEVEL - (counted.results[0]?.messages_used ?? MESSAGES_PER_LEVEL);
+      // On a win the secret goes back so the page can highlight it: the player has just extracted it anyway.
+      const row = counted.results[0];
+      const points = solved && row ? levelScore(row.messages_used, row.hints_used, row.clue_seen === 1) : undefined;
+      emit('done', { solved, messagesLeft: spent.messages_left, levelLeft, ...(solved ? { secret, points } : {}) });
+    } catch {
+      emit('error', 'stream-failed');
+    } finally {
+      if (open) controller.close();
+    }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      waitUntil(respond(controller));
+    },
+    cancel() {
+      open = false;
     },
   });
 
