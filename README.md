@@ -9,8 +9,9 @@ A browser game about attacking AI. You're a red-team contractor hired by Fernlei
 | 1, Inside job | Penny, the support chat | "Only share it with staff" | Impersonation (LLM01, LLM02) |
 | 2, Choose your words | Penny, patched | Keyword filter and a hardened prompt | Reframing the request (LLM01, LLM07) |
 | 3, Spell it out | The app's help centre | Output filter | Encoding the secret past the filter (LLM02, LLM05) |
+| 4, Between the lines | Inbox Assist, the staff email summariser | Emails wrapped in tags, rules repeated after them | Indirect injection through an email you send (LLM01, LLM02) |
 
-Levels 4 to 6 (indirect injection through email, an agent with tools, and a boss level that stacks every defence) are next.
+Levels 5 and 6 (an agent with tools, and a boss level that stacks every defence) are next.
 
 ## How it works
 
@@ -45,7 +46,7 @@ npx wrangler d1 migrations apply break-the-ai --local
 npx astro dev
 ```
 
-`npm run check` runs `wrangler types`, `astro check`, the build and the unit tests (`vitest`). `node tools/playtest.mjs --new --level 1 "your message"` plays a level from the terminal against the dev server.
+`npm run check` runs `wrangler types`, `astro check`, the build and the unit tests (`vitest`). `node tools/playtest.mjs --new --level 1 "your message"` plays a level from the terminal against the dev server (add `--subject "..."` on level 4 to send each message as an email body).
 
 ## Deploy
 

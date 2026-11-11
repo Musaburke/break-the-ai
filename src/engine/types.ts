@@ -1,6 +1,12 @@
 export type Role = 'user' | 'assistant';
 export type Turn = { role: Role; content: string };
 
+/** One email in an inbox level. `{{secret}}` in the body is replaced on the server. */
+export type InboxEmail = { from: string; subject: string; time: string; body: string };
+
+/** The email the player writes on an inbox level. Every field is untrusted. */
+export type PlayerEmail = { from: string; subject: string; body: string };
+
 export type Level = {
   number: number;
   /** Workers AI model id. */
@@ -34,6 +40,21 @@ export type Level = {
   outputFilter?: boolean;
   /** What the product says when a filter catches something. */
   filteredReply?: string;
+  /**
+   * Inbox levels have no chat: the player writes one email into this inbox, the product summarises the
+   * whole inbox, and the player sees only the summary. The secret sits in one of the fixed emails.
+   */
+  inbox?: {
+    /** Whose inbox it is, and their team. */
+    owner: string;
+    team: string;
+    /** The summariser's name, shown on its panel. */
+    assistant: string;
+    /** Said again after the emails, so the rules are the last thing the model reads. */
+    reminder: string;
+    /** Fixed emails, newest first. The player's lands on top. */
+    emails: InboxEmail[];
+  };
   /** Three tiers: a nudge, the technique's name, a near-example. */
   hints: [string, string, string];
   debrief: {

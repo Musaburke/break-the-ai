@@ -4,6 +4,7 @@ import { HISTORY_TURNS, MAX_MESSAGE_LENGTH, MAX_REPLY_TOKENS, MESSAGES_PER_LEVEL
 import { levelSecret } from '../../engine/crypto';
 import { blockedInput, filteredReply, shownReply } from '../../engine/defences';
 import { chatHistory } from '../../engine/history';
+import { buildInboxMessages, readEmail } from '../../engine/inbox';
 import { leaks } from '../../engine/leak';
 import { currentPlayer } from '../../engine/player';
 import { buildMessages } from '../../engine/prompt';
@@ -20,11 +21,14 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   if (!player) return fail('no-player', 401);
   if (player.run_date !== utcDay()) return fail('restart', 409);
 
-  const body = (await request.json().catch(() => null)) as { level?: unknown; message?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { level?: unknown; message?: unknown; email?: unknown } | null;
   const level = typeof body?.level === 'number' ? getLevel(body.level) : undefined;
-  const message = typeof body?.message === 'string' ? body.message.trim() : '';
   if (!level) return fail('bad-level', 400);
-  if (!message || message.length > MAX_MESSAGE_LENGTH) return fail('bad-message', 400);
+  // Inbox levels take an email instead of a chat message. It's logged as JSON so the page can show it again.
+  const email = level.inbox ? readEmail(body?.email, MAX_MESSAGE_LENGTH) : null;
+  // readEmail has already capped each field.
+  const message = level.inbox ? (email ? JSON.stringify(email) : '') : typeof body?.message === 'string' ? body.message.trim() : '';
+  if (!message || (!level.inbox && message.length > MAX_MESSAGE_LENGTH)) return fail('bad-message', 400);
 
   const db = env.DB;
   const progress = await db
@@ -57,7 +61,8 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   if (!spent) return fail('limit', 429);
 
   // The model sees the last few turns since the latest new chat, which is what's on the player's screen.
-  const history = await chatHistory(db, player.id, level.number, HISTORY_TURNS);
+  // An inbox summary is a fresh call every time: it only ever sees the inbox as it is now.
+  const history = level.inbox ? [] : await chatHistory(db, player.id, level.number, HISTORY_TURNS);
 
   const now = new Date().toISOString();
   const [counted] = await db.batch<{ messages_used: number; hints_used: number; clue_seen: number }>([
@@ -80,7 +85,7 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   if (!blocked) {
     try {
       upstream = (await env.AI.run(level.model as Parameters<Ai['run']>[0], {
-        messages: buildMessages(level, secret, history, message),
+        messages: email ? buildInboxMessages(level, secret, email) : buildMessages(level, secret, history, message),
         max_tokens: MAX_REPLY_TOKENS,
         temperature: 0.3,
         stream: true,

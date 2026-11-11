@@ -2,9 +2,11 @@
 import type { GetStaticPaths } from 'astro';
 import Base from '../../layouts/Base.astro';
 import BankChat from '../../components/BankChat.astro';
+import BankInbox from '../../components/BankInbox.astro';
 import { bank } from '../../data/bank';
 import { upcoming } from '../../data/roadmap';
-import { MESSAGES_PER_LEVEL } from '../../engine/budget';
+import { MAX_MESSAGE_LENGTH, MESSAGES_PER_LEVEL } from '../../engine/budget';
+import { MAX_FROM_LENGTH, MAX_SUBJECT_LENGTH } from '../../engine/inbox';
 import { CLUE_COST, HINT_COST, LEVEL_POINTS, MESSAGE_COST } from '../../engine/score';
 import { levels } from '../../levels';
 
@@ -12,16 +14,19 @@ export const getStaticPaths = (() => levels.map((level) => ({ params: { level: S
 
 // Only public fields reach the page. The system prompt never leaves the server.
 const { level } = Astro.props;
+const { inbox } = level;
 const next = levels.find((l) => l.number === level.number + 1);
 const nextHref = next ? `/play/${next.number}` : '/';
 const nextLabel = next ? `Next: level ${next.number}` : 'All levels';
 const chatTitle = level.number <= 2 ? `${bank.assistant} · ${bank.name}` : 'Help centre';
 const chatSub = level.number <= 2 ? 'Customer support' : `${bank.name} app`;
 const initials = bank.securityLead.split(' ').map((w) => w[0]).join('');
+// Inbox levels count emails, not messages, and have no chat to go back to.
+const unit = inbox ? 'emails' : 'messages';
 const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.map((u) => ({ n: u.number, live: false }))];
 ---
 <Base title={`Level ${level.number}: ${level.short} · Break the AI`} bare>
-  <div class="game" data-chat data-level={level.number} data-per-level={MESSAGES_PER_LEVEL} data-hints={level.hints.length}>
+  <div class="game" data-chat data-level={level.number} data-per-level={MESSAGES_PER_LEVEL} data-hints={level.hints.length} data-kind={inbox ? 'inbox' : 'chat'}>
     <header class="hud wrap">
       <a class="hud-home" href="/" aria-label="Break the AI: level select">Break the AI</a>
 
@@ -40,7 +45,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
         <div class="meter" aria-hidden="true">
           {Array.from({ length: MESSAGES_PER_LEVEL }, () => <span class="meter-bar"></span>)}
         </div>
-        <p class="label" data-left role="status">{MESSAGES_PER_LEVEL} messages left</p>
+        <p class="label" data-left data-unit={unit} role="status">{MESSAGES_PER_LEVEL} {unit} left</p>
       </div>
 
       <div class="hud-box">
@@ -77,9 +82,35 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
           <p class="clue-note" data-clue-note hidden>You're on Easy, but you started this level without its clue, so it isn't shown by itself. Showing it costs {CLUE_COST} points.</p>
           <button type="button" class="pill pill--quiet clue-show" data-clue-show hidden>Show clue −{CLUE_COST} pts</button>
         </div>
+        {inbox && (
+          <>
+            <hr class="dots" />
+            <form class="task-part compose" data-form>
+              <p class="label" id="compose-title">Your email to {inbox.owner}</p>
+              <div class="compose-row">
+                <div class="field">
+                  <label class="label" for="email-from">From</label>
+                  <input id="email-from" name="from" maxlength={MAX_FROM_LENGTH} autocomplete="off" required value="A customer" />
+                </div>
+                <div class="field">
+                  <label class="label" for="email-subject">Subject</label>
+                  <input id="email-subject" name="subject" maxlength={MAX_SUBJECT_LENGTH} autocomplete="off" required />
+                </div>
+              </div>
+              <div class="field">
+                <div class="field-head">
+                  <label class="label" for="email-body">Message</label>
+                  <span class="label field-count" id="email-body-count" data-count aria-live="polite">0 / {MAX_MESSAGE_LENGTH}</span>
+                </div>
+                <textarea id="email-body" name="body" rows="5" maxlength={MAX_MESSAGE_LENGTH} required aria-describedby="email-body-count"></textarea>
+              </div>
+              <button type="submit" class="pill compose-send">Send email</button>
+            </form>
+          </>
+        )}
         <hr class="dots" />
         <div class="task-part" data-hints>
-          <p class="label">Hints −{HINT_COST} pts · messages −{MESSAGE_COST}</p>
+          <p class="label">Hints −{HINT_COST} pts · {unit} −{MESSAGE_COST}</p>
           <ol class="hint-list" data-hint-list></ol>
           <button type="button" class="pill pill--quiet" data-hint>Get hint 1</button>
         </div>
@@ -108,7 +139,11 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
       </section>
 
       <section class="target" aria-label={`The product: ${level.product}`}>
-        <BankChat title={chatTitle} subtitle={chatSub} greeting={level.greeting} live label={level.product} />
+        {inbox ? (
+          <BankInbox owner={inbox.owner} team={inbox.team} assistant={inbox.assistant} emails={inbox.emails} greeting={level.greeting} />
+        ) : (
+          <BankChat title={chatTitle} subtitle={chatSub} greeting={level.greeting} live label={level.product} />
+        )}
       </section>
     </div>
   </div>
@@ -121,7 +156,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
       <div class="leaked-actions">
         <a class="pill pill--dark" href={nextHref}>{nextLabel}</a>
         <a class="pill pill--ghost" href={`/debrief/${level.number}`}>Read the debrief</a>
-        <button type="button" class="pill pill--ghost" data-leaked-close>Back to the chat</button>
+        <button type="button" class="pill pill--ghost" data-leaked-close>Back to the {inbox ? 'inbox' : 'chat'}</button>
       </div>
     </div>
   </section>
@@ -431,6 +466,59 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     text-transform: uppercase;
   }
 
+  .compose-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 10px;
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .field-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .field-count {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .compose input,
+  .compose textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--deep);
+    color: var(--ink);
+    font: 400 1rem / 1.45 var(--text);
+  }
+
+  .compose textarea {
+    resize: vertical;
+    min-height: 120px;
+  }
+
+  .compose input:focus-visible,
+  .compose textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .compose-send {
+    justify-self: start;
+  }
+
+  .compose[hidden] {
+    display: none;
+  }
+
   .submit-status {
     color: var(--muted);
   }
@@ -574,6 +662,9 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     .task {
       padding: 18px;
       gap: 14px;
+    }
+    .compose-row {
+      grid-template-columns: 1fr;
     }
   }
 

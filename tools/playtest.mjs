@@ -3,6 +3,7 @@
 // Usage:
 //   node tools/playtest.mjs [--new] --level <n> "message one" "message two" ...
 //   node tools/playtest.mjs --level 3 --submit <pin>
+//   node tools/playtest.mjs --level 4 --subject "Hi" [--from "A customer"] "email body" ...
 //   node tools/playtest.mjs --report
 // --new starts a fresh player (a fresh run from today's pool). The cookie is kept in .tmp/playtest-cookie.
 // --unlock <n> marks levels 1..n solved for this player in the LOCAL database, to test a later level from a clean history.
@@ -22,6 +23,9 @@ const wantReport = args.includes('--report') && args.splice(args.indexOf('--repo
 const level = Number(flag('--level'));
 const submit = flag('--submit');
 const unlock = Number(flag('--unlock') ?? 0);
+// Inbox levels: each message is the body of an email with this subject.
+const subject = flag('--subject');
+const from = flag('--from') ?? 'A customer';
 const messages = args;
 
 mkdirSync('.tmp', { recursive: true });
@@ -68,7 +72,7 @@ if (submit) {
 
 for (const message of messages) {
   console.log(`\n> ${message}`);
-  const res = await call('/api/chat', { level, message });
+  const res = await call('/api/chat', subject ? { level, email: { from, subject, body: message } } : { level, message });
   if (!res.ok) {
     console.log('  !', res.status, await res.text());
     continue;
