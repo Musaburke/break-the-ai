@@ -13,7 +13,7 @@ const errors: Record<string, string> = {
 type LevelProgress = { level: number; messagesUsed: number; hintsUsed: number; solved: number; points: number };
 
 // What the HUD shows. The server keeps the real counts; this mirrors them for display.
-const hud = { used: 0, hints: 0, perLevel: 15, easy: false };
+const hud = { used: 0, hints: 0, perLevel: 15, clue: false };
 
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
@@ -24,7 +24,7 @@ function renderHud() {
   document.querySelectorAll<HTMLElement>('.meter-bar').forEach((bar, i) => bar.toggleAttribute('data-spent', i >= left));
   // Points still on offer for this level if the next message wins it.
   const points = document.querySelector<HTMLElement>('[data-level-points]');
-  if (points) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.easy));
+  if (points) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.clue));
 }
 type Who = 'you' | 'bot' | 'system';
 
@@ -93,7 +93,17 @@ function mountSubmit(level: number, chatForm: HTMLFormElement) {
   });
 }
 
-function mountHints(level: number, total: number) {
+function showClueText(text: string) {
+  const clue = document.querySelector<HTMLElement>('[data-clue]');
+  if (!clue) return;
+  clue.querySelector('[data-clue-text]')!.textContent = text;
+  clue.hidden = false;
+  document.querySelector<HTMLElement>('[data-clue-show]')?.setAttribute('hidden', '');
+  hud.clue = true;
+  renderHud();
+}
+
+function mountHints(level: number, total: number, playable: boolean) {
   const list = document.querySelector<HTMLElement>('[data-hint-list]')!;
   const button = document.querySelector<HTMLButtonElement>('[data-hint]')!;
   const render = (hints: string[]) => {
@@ -117,13 +127,23 @@ function mountHints(level: number, total: number) {
     })
     .then((data) => {
       render(data.hints ?? []);
-      // Only an Easy run gets a clue from the server.
-      const clue = document.querySelector<HTMLElement>('[data-clue]');
-      if (clue && data.clue) {
-        clue.querySelector('[data-clue-text]')!.textContent = data.clue;
-        clue.hidden = false;
-      }
+      // The server sends the clue on Easy or once it's been shown. Otherwise Normal players can ask for it.
+      if (data.clue) showClueText(data.clue);
+      else if (playable) document.querySelector<HTMLElement>('[data-clue-show]')?.removeAttribute('hidden');
     });
+
+  document.querySelector<HTMLButtonElement>('[data-clue-show]')?.addEventListener('click', async (event) => {
+    const show = event.currentTarget as HTMLButtonElement;
+    show.disabled = true;
+    const res = await fetch('/api/hint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, clue: true }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { clue?: string };
+    if (data.clue) showClueText(data.clue);
+    show.disabled = false;
+  });
 
   button.addEventListener('click', async () => {
     button.disabled = true;
@@ -163,9 +183,9 @@ export async function mountChat(root: HTMLElement) {
   }
   const here = progress.levels.find((l) => l.level === level);
   hud.perLevel = perLevel;
-  hud.easy = progress.mode === 'easy';
+  const easy = progress.mode === 'easy';
   const modeTag = document.querySelector<HTMLElement>('[data-mode-tag]');
-  if (modeTag) modeTag.textContent = ` · ${hud.easy ? 'Easy' : 'Normal'}`;
+  if (modeTag) modeTag.textContent = ` · ${easy ? 'Easy' : 'Normal'}`;
   hud.used = here?.messagesUsed ?? 0;
   hud.hints = here?.hintsUsed ?? 0;
   renderHud();
@@ -205,7 +225,7 @@ export async function mountChat(root: HTMLElement) {
       input.focus();
     });
   }
-  mountHints(level, Number(root.dataset.hints));
+  mountHints(level, Number(root.dataset.hints), previousSolved && !here?.solved);
   mountSubmit(level, form);
 
   // Enter sends, Shift+Enter adds a line, like every chat widget.

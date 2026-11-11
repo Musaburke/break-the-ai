@@ -5,7 +5,7 @@ import BankChat from '../../components/BankChat.astro';
 import { bank } from '../../data/bank';
 import { upcoming } from '../../data/roadmap';
 import { MESSAGES_PER_LEVEL } from '../../engine/budget';
-import { HINT_COST, LEVEL_POINTS, MESSAGE_COST } from '../../engine/score';
+import { CLUE_COST, HINT_COST, LEVEL_POINTS, MESSAGE_COST } from '../../engine/score';
 import { levels } from '../../levels';
 
 export const getStaticPaths = (() => levels.map((level) => ({ params: { level: String(level.number) }, props: { level } }))) satisfies GetStaticPaths;
@@ -74,6 +74,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
           <p class="label">Your task</p>
           <h1 id="task-title" class="task-goal">{level.goal}</h1>
           <p class="task-clue" data-clue hidden><span class="sticker">Clue</span> <span data-clue-text></span></p>
+          <button type="button" class="pill pill--quiet clue-show" data-clue-show hidden>Show clue −{CLUE_COST} pts</button>
         </div>
         <hr class="dots" />
         <div class="task-part" data-hints>
@@ -318,9 +319,14 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     font-weight: 600;
   }
 
-  /* The clue arrives from the server on Easy runs only. */
-  .task-clue[hidden] {
+  /* The clue never ships in the page: the server sends it on Easy, or when a Normal player asks. */
+  .task-clue[hidden],
+  .clue-show[hidden] {
     display: none;
+  }
+
+  .clue-show {
+    justify-self: start;
   }
 
   .cleared-actions {

@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import { upcoming } from '../data/roadmap';
 import { MESSAGES_PER_RUN } from '../engine/budget';
-import { EASY_COST, LEVEL_POINTS } from '../engine/score';
+import { CLUE_COST, LEVEL_POINTS } from '../engine/score';
 import { levels } from '../levels';
 
 // One screen to get in, one short strip for the curious. It's a game: the landing page is a title screen.
@@ -20,23 +20,25 @@ const tiles = [
       <div class="title-play">
         <button type="button" class="pill pill--big" data-start>Play</button>
         <p class="title-status" data-status role="status">{MESSAGES_PER_RUN} messages. No sign-up.</p>
+        <button type="button" class="title-change" data-change hidden>Change difficulty</button>
       </div>
     </div>
 
-    <!-- Difficulty is chosen once, when a run starts, and the server holds it for the whole run. -->
+    <!-- Difficulty only decides whether clues show up by themselves. It can be changed any time. -->
     <dialog class="pick" data-pick aria-labelledby="pick-title">
       <h2 id="pick-title">Pick a difficulty</h2>
-      <p class="pick-note">It's locked for the whole run. You can't switch later.</p>
+      <p class="pick-note">You can change it any time from this page.</p>
       <div class="pick-options">
         <button type="button" class="pick-option pick-option--normal" data-mode="normal">
           <span class="pick-name">Normal</span>
-          <span class="pick-desc">Just the brief. Full points.</span>
+          <span class="pick-desc">Just the brief. Stuck? You can still open a level's clue.</span>
         </button>
         <button type="button" class="pick-option" data-mode="easy">
           <span class="pick-name">Easy</span>
-          <span class="pick-desc">A clue on every level. Each level is worth {EASY_COST} less.</span>
+          <span class="pick-desc">Every level's clue shows up by itself.</span>
         </button>
       </div>
+      <p class="pick-note">A level is worth {CLUE_COST} less once you've seen its clue, either way.</p>
       <button type="button" class="pick-back" data-pick-close>Back</button>
     </dialog>
 
@@ -96,6 +98,10 @@ const tiles = [
   // A player with a run already has a difficulty; only new players are asked.
   let returning = false;
   const pick = document.querySelector<HTMLDialogElement>('[data-pick]')!;
+  const change = document.querySelector<HTMLButtonElement>('[data-change]')!;
+  let summary = '';
+  let mode = 'normal';
+  const showStatus = () => (status.textContent = `${summary} · ${mode === 'easy' ? 'Easy' : 'Normal'}`);
 
   fetch('/api/status')
     .then((res) => res.json() as Promise<{ runsLeft: number }>)
@@ -125,7 +131,10 @@ const tiles = [
       }
       next = tiles.map((t) => Number(t.dataset.tile)).find((n) => !solved.has(n)) ?? tiles.length;
       play.textContent = solved.size ? `Continue: level ${next}` : 'Play';
-      status.textContent = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left · ${data.mode === 'easy' ? 'Easy' : 'Normal'}`;
+      summary = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left`;
+      mode = data.mode;
+      showStatus();
+      change.hidden = false;
       tiles.forEach((t) => t.classList.toggle('tile--next', Number(t.dataset.tile) === next));
     })
     .catch(() => {});
@@ -147,10 +156,19 @@ const tiles = [
   }
 
   play.addEventListener('click', () => (returning ? start() : pick.showModal()));
+  change.addEventListener('click', () => pick.showModal());
+  // New players start a run on the chosen difficulty; returning players just switch it.
   pick.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       pick.close();
-      start(b.dataset.mode);
+      if (!returning) return start(b.dataset.mode);
+      const res = await fetch('/api/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: b.dataset.mode }),
+      });
+      if (res.ok) mode = ((await res.json()) as { mode: string }).mode;
+      showStatus();
     }),
   );
   pick.querySelector('[data-pick-close]')!.addEventListener('click', () => pick.close());
@@ -201,6 +219,30 @@ const tiles = [
 
   .title-status {
     color: var(--muted);
+  }
+
+  .title-change {
+    padding: 8px 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .title-change:hover {
+    color: var(--accent);
+  }
+
+  .title-change:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .title-change[hidden] {
+    display: none;
   }
 
   .pick {

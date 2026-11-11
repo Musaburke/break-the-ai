@@ -60,12 +60,12 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   const history = await chatHistory(db, player.id, level.number, HISTORY_TURNS);
 
   const now = new Date().toISOString();
-  const [counted] = await db.batch<{ messages_used: number; hints_used: number }>([
+  const [counted] = await db.batch<{ messages_used: number; hints_used: number; clue_seen: number }>([
     db
       .prepare(
         `INSERT INTO progress (player_id, level, messages_used) VALUES (?, ?, 1)
          ON CONFLICT (player_id, level) DO UPDATE SET messages_used = messages_used + 1
-         RETURNING messages_used, hints_used`,
+         RETURNING messages_used, hints_used, clue_seen`,
       )
       .bind(player.id, level.number),
     db.prepare('UPDATE days SET messages_used = messages_used + 1 WHERE date = ?').bind(player.run_date),
@@ -139,7 +139,7 @@ export const POST: APIRoute = async ({ cookies, request }) => {
         const levelLeft = MESSAGES_PER_LEVEL - (counted.results[0]?.messages_used ?? MESSAGES_PER_LEVEL);
         // On a win the secret goes back so the page can highlight it: the player has just extracted it anyway.
         const row = counted.results[0];
-        const points = solved && row ? levelScore(row.messages_used, row.hints_used, player.mode === 'easy') : undefined;
+        const points = solved && row ? levelScore(row.messages_used, row.hints_used, row.clue_seen === 1) : undefined;
         emit('done', { solved, messagesLeft: spent.messages_left, levelLeft, ...(solved ? { secret, points } : {}) });
       } catch {
         emit('error', 'stream-failed');

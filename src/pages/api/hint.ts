@@ -16,20 +16,49 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (!player) return fail('no-player', 401);
   const level = getLevel(Number(url.searchParams.get('level')));
   if (!level) return fail('bad-level', 400);
-  const row = await env.DB.prepare('SELECT hints_used FROM progress WHERE player_id = ? AND level = ?')
+  const row = await env.DB.prepare('SELECT hints_used, clue_seen FROM progress WHERE player_id = ? AND level = ?')
     .bind(player.id, level.number)
-    .first<{ hints_used: number }>();
-  // The clue only ever leaves the server for an Easy run, so it can't be read from a Normal page's source.
-  return Response.json({ hints: level.hints.slice(0, row?.hints_used ?? 0), ...(player.mode === 'easy' ? { clue: level.clue } : {}) });
+    .first<{ hints_used: number; clue_seen: number }>();
+  // The clue never ships in the page. It's sent once it's been shown, or now if the player is on Easy,
+  // and showing it is recorded first, so the level costs CLUE_COST from then on.
+  let clue = row?.clue_seen === 1;
+  if (!clue && player.mode === 'easy') clue = await showClue(player.id, level.number);
+  return Response.json({ hints: level.hints.slice(0, row?.hints_used ?? 0), ...(clue ? { clue: level.clue } : {}) });
 };
 
-/** Reveals the next hint tier, up to three. */
+/**
+ * Records that a level's clue has been shown, and says whether it may be. Never on a locked level (nothing
+ * to play yet) and never charged once a level is solved, so a finished score can't drop. Once set it stays set.
+ */
+async function showClue(playerId: string, level: number): Promise<boolean> {
+  if (level > 1) {
+    const previous = await env.DB.prepare('SELECT 1 FROM progress WHERE player_id = ? AND level = ? AND solved_at IS NOT NULL')
+      .bind(playerId, level - 1)
+      .first();
+    if (!previous) return false;
+  }
+  await env.DB.prepare(
+    `INSERT INTO progress (player_id, level, clue_seen) VALUES (?, ?, 1)
+     ON CONFLICT (player_id, level) DO UPDATE SET clue_seen = 1 WHERE solved_at IS NULL`,
+  )
+    .bind(playerId, level)
+    .run();
+  return true;
+}
+
+/** Reveals the next hint tier, up to three, or with `clue: true` the level's clue. */
 export const POST: APIRoute = async ({ cookies, request }) => {
   const player = await currentPlayer(cookies, env.SECRET_KEY, env.DB);
   if (!player) return fail('no-player', 401);
-  const body = (await request.json().catch(() => null)) as { level?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { level?: unknown; clue?: unknown } | null;
   const level = typeof body?.level === 'number' ? getLevel(body.level) : undefined;
   if (!level) return fail('bad-level', 400);
+
+  // On Normal the clue is one button away, priced like Easy.
+  if (body?.clue === true) {
+    if (!(await showClue(player.id, level.number))) return fail('locked', 403);
+    return Response.json({ clue: level.clue });
+  }
 
   const row = await env.DB.prepare(
     `INSERT INTO progress (player_id, level, hints_used) VALUES (?1, ?2, 1)

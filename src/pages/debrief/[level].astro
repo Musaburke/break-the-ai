@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers';
 import Base from '../../layouts/Base.astro';
 import { currentPlayer } from '../../engine/player';
-import { EASY_COST, HINT_COST, LEVEL_POINTS, MESSAGE_COST, levelScore } from '../../engine/score';
+import { CLUE_COST, HINT_COST, LEVEL_POINTS, MESSAGE_COST, levelScore } from '../../engine/score';
 import { getLevel, levels } from '../../levels';
 
 // Rendered on demand: the debrief only opens once the server has recorded the level as solved.
@@ -13,16 +13,16 @@ if (!level) return Astro.redirect('/');
 
 const player = await currentPlayer(Astro.cookies, env.SECRET_KEY, env.DB);
 const progress = player
-  ? await env.DB.prepare('SELECT messages_used, hints_used, solved_at FROM progress WHERE player_id = ? AND level = ?')
+  ? await env.DB.prepare('SELECT messages_used, hints_used, clue_seen, solved_at FROM progress WHERE player_id = ? AND level = ?')
       .bind(player.id, level.number)
-      .first<{ messages_used: number; hints_used: number; solved_at: string | null }>()
+      .first<{ messages_used: number; hints_used: number; clue_seen: number; solved_at: string | null }>()
   : null;
 if (!progress?.solved_at) return Astro.redirect(`/play/${level.number}`);
 
 const next = getLevel(level.number + 1);
 const { debrief } = level;
-const easy = player?.mode === 'easy';
-const points = levelScore(progress.messages_used, progress.hints_used, easy);
+const clue = progress.clue_seen === 1;
+const points = levelScore(progress.messages_used, progress.hints_used, clue);
 const fmt = (n: number) => n.toLocaleString('en-GB');
 const cost = (n: number) => (n ? `−${fmt(n)}` : '0');
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -37,7 +37,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
       <div><dt class="label">Level</dt><dd>{fmt(LEVEL_POINTS)}</dd></div>
       <div><dt class="label">{plural(progress.messages_used, 'message')}</dt><dd>{cost(progress.messages_used * MESSAGE_COST)}</dd></div>
       <div><dt class="label">{plural(progress.hints_used, 'hint')}</dt><dd>{cost(progress.hints_used * HINT_COST)}</dd></div>
-      {easy && <div><dt class="label">Easy mode</dt><dd>{cost(EASY_COST)}</dd></div>}
+      {clue && <div><dt class="label">Clue</dt><dd>{cost(CLUE_COST)}</dd></div>}
       <div class="tally-total"><dt class="label">You scored</dt><dd>{fmt(points)}</dd></div>
     </dl>
   </section>
