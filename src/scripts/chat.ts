@@ -168,6 +168,28 @@ export async function mountChat(root: HTMLElement) {
     send.disabled = true;
     input.disabled = true;
   }
+  // The page opens on a fresh conversation, so the model never remembers turns the player can't see.
+  // The body is always read: an unread body keeps the request open.
+  const newChat = () =>
+    fetch('/api/new-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) })
+      .then((res) => res.json())
+      .catch(() => null);
+  const newChatButton = root.querySelector<HTMLButtonElement>('[data-new-chat]');
+  if (here?.solved || !previousSolved) {
+    if (newChatButton) newChatButton.hidden = true;
+  } else {
+    await newChat();
+    newChatButton?.addEventListener('click', async () => {
+      if (send.disabled) return;
+      newChatButton.disabled = true;
+      await newChat();
+      // Keep the greeting, drop the rest.
+      [...log.children].slice(1).forEach((el) => el.remove());
+      bubble(log, 'system', 'New chat. It has forgotten everything you said. Your messages used and points stay the same.');
+      newChatButton.disabled = false;
+      input.focus();
+    });
+  }
   mountHints(level, Number(root.dataset.hints));
   mountSubmit(level, form);
 

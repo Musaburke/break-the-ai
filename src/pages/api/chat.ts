@@ -57,10 +57,12 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   if (!spent) return fail('limit', 429);
 
   // History is read from the server's own log, never from the browser, so a player can't forge the model's past replies.
+  // It starts after the latest new chat (a reset event), so it matches what's on the player's screen.
   const { results: past } = await db
     .prepare(
-      `SELECT kind, text FROM events WHERE player_id = ? AND level = ? AND kind IN ('message', 'reply') AND text IS NOT NULL
-       ORDER BY id DESC LIMIT ?`,
+      `SELECT kind, text FROM events WHERE player_id = ?1 AND level = ?2 AND kind IN ('message', 'reply') AND text IS NOT NULL
+         AND id > COALESCE((SELECT MAX(id) FROM events WHERE player_id = ?1 AND level = ?2 AND kind = 'reset'), 0)
+       ORDER BY id DESC LIMIT ?3`,
     )
     .bind(player.id, level.number, HISTORY_TURNS)
     .all<{ kind: string; text: string }>();

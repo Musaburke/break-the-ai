@@ -8,11 +8,15 @@ export const prerender = false;
 
 // Starts or resumes a run. A run is reserved from today's pool before the player types anything,
 // so nobody is cut off halfway: if the day can't cover a whole run, they're told now.
+const LOOPBACK = new Set(['127.0.0.1', '::1']);
+
 // Reserves a run from today's pool, but no more than RUNS_PER_VISITOR per IP address a day.
 // Without that cap, a dozen requests from one machine would lock everyone else out until midnight.
 async function reserve(request: Request, today: string): Promise<'ok' | 'full' | 'visitor-limit'> {
-  // Cloudflare always sets this header in production. Local dev has none, and playtests start many runs.
-  const ip = request.headers.get('CF-Connecting-IP') ?? (import.meta.env.DEV ? null : 'unknown');
+  // Cloudflare always sets this header in production. Local dev reports loopback (or nothing), and playtests
+  // start many runs, so loopback isn't counted. Production never sees a loopback address.
+  const header = request.headers.get('CF-Connecting-IP');
+  const ip = header && !LOOPBACK.has(header) ? header : import.meta.env.DEV ? null : (header ?? 'unknown');
   const visitor = ip ? await visitorId(env.SECRET_KEY, today, ip) : null;
   if (visitor && !(await claimVisitorRun(env.DB, today, visitor))) return 'visitor-limit';
   if (await reserveRun(env.DB, today)) return 'ok';

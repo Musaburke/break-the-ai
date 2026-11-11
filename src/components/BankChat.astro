@@ -23,6 +23,7 @@ const { title, subtitle, greeting, sample = [], live = false, label } = Astro.pr
       <div class="bank-title">{title}</div>
       <div class="bank-sub">{subtitle}</div>
     </div>
+    {live && <button type="button" class="bank-new" data-new-chat>New chat</button>}
   </div>
   <ol class="bank-log" data-log aria-live={live ? 'polite' : undefined} aria-label={live ? 'Conversation' : undefined}>
     <li class="bank-msg bank-msg--bot">{greeting}</li>

@@ -39,6 +39,37 @@
   color: var(--b-brand-ink);
 }
 
+.bank-new {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--b-radius-control);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--b-brand-ink);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+
+.bank-new:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.bank-new:active {
+  transform: scale(0.97);
+}
+
+.bank-new:focus-visible {
+  outline: 2px solid var(--b-brand-ink);
+  outline-offset: 2px;
+}
+
+.bank-new[hidden] {
+  display: none;
+}
+
 .bank-logo {
   width: 28px;
   height: 28px;
