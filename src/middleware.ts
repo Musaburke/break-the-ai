@@ -7,6 +7,7 @@ const common: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Frame-Options': 'DENY',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   // Per-player data must never be cached.
   'Cache-Control': 'no-store',
 };
