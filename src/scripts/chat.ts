@@ -99,11 +99,12 @@ function showClueText(text: string) {
   clue.querySelector('[data-clue-text]')!.textContent = text;
   clue.hidden = false;
   document.querySelector<HTMLElement>('[data-clue-show]')?.setAttribute('hidden', '');
+  document.querySelector<HTMLElement>('[data-clue-note]')?.setAttribute('hidden', '');
   hud.clue = true;
   renderHud();
 }
 
-function mountHints(level: number, total: number, playable: boolean) {
+function mountHints(level: number, total: number, playable: boolean, easy: boolean) {
   const list = document.querySelector<HTMLElement>('[data-hint-list]')!;
   const button = document.querySelector<HTMLButtonElement>('[data-hint]')!;
   const render = (hints: string[]) => {
@@ -129,7 +130,11 @@ function mountHints(level: number, total: number, playable: boolean) {
       render(data.hints ?? []);
       // The server sends the clue on Easy or once it's been shown. Otherwise Normal players can ask for it.
       if (data.clue) showClueText(data.clue);
-      else if (playable) document.querySelector<HTMLElement>('[data-clue-show]')?.removeAttribute('hidden');
+      else if (playable) {
+        document.querySelector<HTMLElement>('[data-clue-show]')?.removeAttribute('hidden');
+        // On Easy with no clue sent, the level was already started: say why it didn't appear.
+        if (easy) document.querySelector<HTMLElement>('[data-clue-note]')?.removeAttribute('hidden');
+      }
     });
 
   document.querySelector<HTMLButtonElement>('[data-clue-show]')?.addEventListener('click', async (event) => {
@@ -225,7 +230,7 @@ export async function mountChat(root: HTMLElement) {
       input.focus();
     });
   }
-  mountHints(level, Number(root.dataset.hints), previousSolved && !here?.solved);
+  mountHints(level, Number(root.dataset.hints), previousSolved && !here?.solved, easy);
   mountSubmit(level, form);
 
   // Enter sends, Shift+Enter adds a line, like every chat widget.

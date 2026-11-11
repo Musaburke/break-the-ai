@@ -16,13 +16,15 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   if (!player) return fail('no-player', 401);
   const level = getLevel(Number(url.searchParams.get('level')));
   if (!level) return fail('bad-level', 400);
-  const row = await env.DB.prepare('SELECT hints_used, clue_seen FROM progress WHERE player_id = ? AND level = ?')
+  const row = await env.DB.prepare('SELECT messages_used, hints_used, clue_seen FROM progress WHERE player_id = ? AND level = ?')
     .bind(player.id, level.number)
-    .first<{ hints_used: number; clue_seen: number }>();
+    .first<{ messages_used: number; hints_used: number; clue_seen: number }>();
   // The clue never ships in the page. It's sent once it's been shown, or now if the player is on Easy,
-  // and showing it is recorded first, so the level costs CLUE_COST from then on.
+  // and showing it is recorded first, so the level costs CLUE_COST from then on. On Easy it only shows by
+  // itself on a level not yet started: on one already started (likely on Normal) the player chooses.
   let clue = row?.clue_seen === 1;
-  if (!clue && player.mode === 'easy') clue = await showClue(player.id, level.number);
+  const started = (row?.messages_used ?? 0) > 0 || (row?.hints_used ?? 0) > 0;
+  if (!clue && player.mode === 'easy' && !started) clue = await showClue(player.id, level.number);
   return Response.json({ hints: level.hints.slice(0, row?.hints_used ?? 0), ...(clue ? { clue: level.clue } : {}) });
 };
 

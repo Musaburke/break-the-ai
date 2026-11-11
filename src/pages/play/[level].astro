@@ -74,6 +74,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
           <p class="label">Your task</p>
           <h1 id="task-title" class="task-goal">{level.goal}</h1>
           <p class="task-clue" data-clue hidden><span class="sticker">Clue</span> <span data-clue-text></span></p>
+          <p class="clue-note" data-clue-note hidden>You're on Easy, but you started this level without its clue, so it isn't shown by itself. Showing it costs {CLUE_COST} points.</p>
           <button type="button" class="pill pill--quiet clue-show" data-clue-show hidden>Show clue −{CLUE_COST} pts</button>
         </div>
         <hr class="dots" />
@@ -321,12 +322,17 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
 
   /* The clue never ships in the page: the server sends it on Easy, or when a Normal player asks. */
   .task-clue[hidden],
+  .clue-note[hidden],
   .clue-show[hidden] {
     display: none;
   }
 
   .clue-show {
     justify-self: start;
+  }
+
+  .clue-note {
+    color: var(--muted);
   }
 
   .cleared-actions {
