@@ -25,7 +25,10 @@ const {
     {!bare && (
       <header class="top wrap">
         <a class="mark" href="/">Break the AI</a>
-        <a class="top-link link" href="/#levels">Levels</a>
+        <nav class="top-nav" aria-label="Site">
+          <a class="top-link link" href="/#levels">Levels</a>
+          <a class="top-link link" href="/about">About</a>
+        </nav>
       </header>
     )}
     <main id="main">
@@ -66,6 +69,11 @@ const {
 
   .mark:hover {
     color: var(--accent);
+  }
+
+  .top-nav {
+    display: flex;
+    gap: 24px;
   }
 
   .top-link {
