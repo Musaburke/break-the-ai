@@ -13,7 +13,7 @@ const errors: Record<string, string> = {
 type LevelProgress = { level: number; messagesUsed: number; hintsUsed: number; solved: number; points: number };
 
 // What the HUD shows. The server keeps the real counts; this mirrors them for display.
-const hud = { used: 0, hints: 0, perLevel: 15 };
+const hud = { used: 0, hints: 0, perLevel: 15, easy: false };
 
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
@@ -24,7 +24,7 @@ function renderHud() {
   document.querySelectorAll<HTMLElement>('.meter-bar').forEach((bar, i) => bar.toggleAttribute('data-spent', i >= left));
   // Points still on offer for this level if the next message wins it.
   const points = document.querySelector<HTMLElement>('[data-level-points]');
-  if (points) points.textContent = fmt(levelScore(hud.used + 1, hud.hints));
+  if (points) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.easy));
 }
 type Who = 'you' | 'bot' | 'system';
 
@@ -112,10 +112,18 @@ function mountHints(level: number, total: number) {
 
   fetch(`/api/hint?level=${level}`)
     .then(async (res) => {
-      const data = (await res.json()) as { hints?: string[] };
-      return { hints: res.ok ? (data.hints ?? []) : [] };
+      const data = (await res.json()) as { hints?: string[]; clue?: string };
+      return res.ok ? data : {};
     })
-    .then((data) => render(data.hints));
+    .then((data) => {
+      render(data.hints ?? []);
+      // Only an Easy run gets a clue from the server.
+      const clue = document.querySelector<HTMLElement>('[data-clue]');
+      if (clue && data.clue) {
+        clue.querySelector('[data-clue-text]')!.textContent = data.clue;
+        clue.hidden = false;
+      }
+    });
 
   button.addEventListener('click', async () => {
     button.disabled = true;
@@ -146,7 +154,7 @@ export async function mountChat(root: HTMLElement) {
   }
   await run.json();
   const progressRes = await fetch('/api/progress');
-  const progress = (await progressRes.json()) as { levels?: LevelProgress[]; score?: number };
+  const progress = (await progressRes.json()) as { levels?: LevelProgress[]; score?: number; mode?: string };
   if (!progressRes.ok || !progress.levels) {
     // The session didn't stick (cookies blocked, or it expired). Say so instead of failing silently.
     bubble(log, 'system', "Your session didn't start. Check cookies are allowed for this site, then reload.");
@@ -155,6 +163,9 @@ export async function mountChat(root: HTMLElement) {
   }
   const here = progress.levels.find((l) => l.level === level);
   hud.perLevel = perLevel;
+  hud.easy = progress.mode === 'easy';
+  const easyTag = document.querySelector<HTMLElement>('[data-easy-tag]');
+  if (easyTag) easyTag.hidden = !hud.easy;
   hud.used = here?.messagesUsed ?? 0;
   hud.hints = here?.hintsUsed ?? 0;
   renderHud();

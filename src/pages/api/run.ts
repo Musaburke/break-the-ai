@@ -27,25 +27,28 @@ async function reserve(request: Request, today: string): Promise<'ok' | 'full' |
 export const POST: APIRoute = async ({ cookies, url, request }) => {
   const today = utcDay();
   const player = await currentPlayer(cookies, env.SECRET_KEY, env.DB);
+  // Difficulty is only read when a run starts. An existing run keeps the mode it began with.
+  const body = (await request.json().catch(() => null)) as { mode?: unknown } | null;
+  const mode = body?.mode === 'easy' ? 'easy' : 'normal';
 
   if (player) {
     // Same day, or nothing left to play: nothing to reserve.
     if (player.run_date === today || player.messages_left === 0) {
-      return Response.json({ messagesLeft: player.messages_left });
+      return Response.json({ messagesLeft: player.messages_left, mode: player.mode });
     }
     // Back on a later day with messages left: progress is kept, but today's pool must cover them.
     const reserved = await reserve(request, today);
     if (reserved !== 'ok') return Response.json({ error: reserved }, { status: reserved === 'full' ? 409 : 429 });
     await env.DB.prepare('UPDATE players SET run_date = ? WHERE id = ?').bind(today, player.id).run();
-    return Response.json({ messagesLeft: player.messages_left });
+    return Response.json({ messagesLeft: player.messages_left, mode: player.mode });
   }
 
   const reserved = await reserve(request, today);
   if (reserved !== 'ok') return Response.json({ error: reserved }, { status: reserved === 'full' ? 409 : 429 });
   const id = randomId();
-  await env.DB.prepare('INSERT INTO players (id, created_at, run_date, messages_left) VALUES (?, ?, ?, ?)')
-    .bind(id, new Date().toISOString(), today, MESSAGES_PER_RUN)
+  await env.DB.prepare('INSERT INTO players (id, created_at, run_date, messages_left, mode) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, new Date().toISOString(), today, MESSAGES_PER_RUN, mode)
     .run();
   await setPlayerCookie(cookies, env.SECRET_KEY, id, url.protocol === 'https:');
-  return Response.json({ messagesLeft: MESSAGES_PER_RUN });
+  return Response.json({ messagesLeft: MESSAGES_PER_RUN, mode });
 };

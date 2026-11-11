@@ -73,6 +73,8 @@ describe('score', () => {
   it('starts at 1000 and charges messages and hints', () => {
     expect(levelScore(1, 0)).toBe(950);
     expect(levelScore(3, 1)).toBe(700);
+    expect(levelScore(3, 1, true)).toBe(450);
+    expect(levelScore(15, 3, true)).toBe(100);
   });
   it('never drops below 100 for a solve', () => {
     expect(levelScore(15, 3)).toBe(100);

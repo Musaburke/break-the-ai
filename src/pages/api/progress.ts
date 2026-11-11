@@ -13,6 +13,6 @@ export const GET: APIRoute = async ({ cookies }) => {
   )
     .bind(player.id)
     .all<{ level: number; messagesUsed: number; hintsUsed: number; solved: number }>();
-  const levels = results.map((l) => ({ ...l, points: l.solved ? levelScore(l.messagesUsed, l.hintsUsed) : 0 }));
-  return Response.json({ messagesLeft: player.messages_left, score: levels.reduce((sum, l) => sum + l.points, 0), levels });
+  const levels = results.map((l) => ({ ...l, points: l.solved ? levelScore(l.messagesUsed, l.hintsUsed, player.mode === 'easy') : 0 }));
+  return Response.json({ messagesLeft: player.messages_left, mode: player.mode, score: levels.reduce((sum, l) => sum + l.points, 0), levels });
 };

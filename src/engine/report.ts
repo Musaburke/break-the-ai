@@ -7,6 +7,8 @@ export type ReportSummary = {
   totalMessages: number;
   totalHints: number;
   score: number;
+  /** Played on Easy. Missing on reports made before difficulty existed. */
+  easy?: boolean;
 };
 
 type Row = { level: number; messages_used: number; hints_used: number; solved_at: string | null };
@@ -15,7 +17,7 @@ type Row = { level: number; messages_used: number; hints_used: number; solved_at
  * The public pentest report. Built only from the game's own data: nothing the player typed appears in it,
  * so there is nothing to moderate. Returns null until every released level is solved.
  */
-export function buildReport(levels: Level[], rows: Row[], now = new Date()): ReportSummary | null {
+export function buildReport(levels: Level[], rows: Row[], now = new Date(), easy = false): ReportSummary | null {
   const findings = [];
   for (const level of levels) {
     const row = rows.find((r) => r.level === level.number);
@@ -26,7 +28,7 @@ export function buildReport(levels: Level[], rows: Row[], now = new Date()): Rep
       owasp: level.debrief.owasp,
       messages: row.messages_used,
       hints: row.hints_used,
-      points: levelScore(row.messages_used, row.hints_used),
+      points: levelScore(row.messages_used, row.hints_used, easy),
     });
   }
   return {
@@ -35,5 +37,6 @@ export function buildReport(levels: Level[], rows: Row[], now = new Date()): Rep
     totalMessages: findings.reduce((sum, f) => sum + f.messages, 0),
     totalHints: findings.reduce((sum, f) => sum + f.hints, 0),
     score: findings.reduce((sum, f) => sum + f.points, 0),
+    easy,
   };
 }

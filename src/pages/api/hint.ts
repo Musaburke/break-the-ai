@@ -19,7 +19,8 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const row = await env.DB.prepare('SELECT hints_used FROM progress WHERE player_id = ? AND level = ?')
     .bind(player.id, level.number)
     .first<{ hints_used: number }>();
-  return Response.json({ hints: level.hints.slice(0, row?.hints_used ?? 0) });
+  // The clue only ever leaves the server for an Easy run, so it can't be read from a Normal page's source.
+  return Response.json({ hints: level.hints.slice(0, row?.hints_used ?? 0), ...(player.mode === 'easy' ? { clue: level.clue } : {}) });
 };
 
 /** Reveals the next hint tier, up to three. */

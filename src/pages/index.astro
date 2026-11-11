@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import { upcoming } from '../data/roadmap';
 import { MESSAGES_PER_RUN } from '../engine/budget';
-import { LEVEL_POINTS } from '../engine/score';
+import { EASY_COST, LEVEL_POINTS } from '../engine/score';
 import { levels } from '../levels';
 
 // One screen to get in, one short strip for the curious. It's a game: the landing page is a title screen.
@@ -21,13 +21,24 @@ const tiles = [
         <button type="button" class="pill pill--big" data-start>Play</button>
         <p class="title-status" data-status role="status">{MESSAGES_PER_RUN} messages. No sign-up.</p>
       </div>
-      <fieldset class="mode">
-        <legend class="label">Difficulty</legend>
-        <label><input type="radio" name="mode" value="normal" checked /> <span>Normal</span></label>
-        <label><input type="radio" name="mode" value="easy" /> <span>Easy</span></label>
-        <p class="mode-note">Easy adds a clue to every level.</p>
-      </fieldset>
     </div>
+
+    <!-- Difficulty is chosen once, when a run starts, and the server holds it for the whole run. -->
+    <dialog class="pick" data-pick aria-labelledby="pick-title">
+      <h2 id="pick-title">Pick a difficulty</h2>
+      <p class="pick-note">It's locked for the whole run. You can't switch later.</p>
+      <div class="pick-options">
+        <button type="button" class="pick-option pick-option--normal" data-mode="normal">
+          <span class="pick-name">Normal</span>
+          <span class="pick-desc">Just the brief. Full points.</span>
+        </button>
+        <button type="button" class="pick-option" data-mode="easy">
+          <span class="pick-name">Easy</span>
+          <span class="pick-desc">A clue on every level. Each level is worth {EASY_COST} less.</span>
+        </button>
+      </div>
+      <button type="button" class="pick-back" data-pick-close>Back</button>
+    </dialog>
 
     <div class="levels" id="levels">
       <hr class="dots" />
@@ -82,6 +93,9 @@ const tiles = [
   const status = document.querySelector<HTMLElement>('[data-status]')!;
   const tiles = [...document.querySelectorAll<HTMLElement>('[data-tile]')];
   let next = 1;
+  // A player with a run already has a difficulty; only new players are asked.
+  let returning = false;
+  const pick = document.querySelector<HTMLDialogElement>('[data-pick]')!;
 
   fetch('/api/status')
     .then((res) => res.json() as Promise<{ runsLeft: number }>)
@@ -94,11 +108,12 @@ const tiles = [
   fetch('/api/progress')
     // Always read the body, even on 401: an unread body keeps the request open.
     .then(async (res) => {
-      const data = (await res.json()) as { messagesLeft: number; score: number; levels: LevelProgress[] };
+      const data = (await res.json()) as { messagesLeft: number; score: number; mode: string; levels: LevelProgress[] };
       return res.ok ? data : null;
     })
     .then((data) => {
       if (!data) return;
+      returning = true;
       const solved = new Map(data.levels.filter((l) => l.solved).map((l) => [l.level, l.points]));
       for (const tile of tiles) {
         const n = Number(tile.dataset.tile);
@@ -110,27 +125,18 @@ const tiles = [
       }
       next = tiles.map((t) => Number(t.dataset.tile)).find((n) => !solved.has(n)) ?? tiles.length;
       play.textContent = solved.size ? `Continue: level ${next}` : 'Play';
-      status.textContent = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left`;
+      status.textContent = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left${data.mode === 'easy' ? ' · Easy' : ''}`;
       tiles.forEach((t) => t.classList.toggle('tile--next', Number(t.dataset.tile) === next));
     })
     .catch(() => {});
 
-  // Difficulty lives in this browser only; Base.astro reads it before paint on every page.
-  const modes = [...document.querySelectorAll<HTMLInputElement>('input[name="mode"]')];
-  const easy = document.documentElement.dataset.mode === 'easy';
-  modes.forEach((m) => {
-    m.checked = (m.value === 'easy') === easy;
-    m.addEventListener('change', () => {
-      document.documentElement.dataset.mode = m.value;
-      try {
-        localStorage.setItem('bta-mode', m.value);
-      } catch {}
-    });
-  });
-
-  play.addEventListener('click', async () => {
+  async function start(mode?: string) {
     play.disabled = true;
-    const res = await fetch('/api/run', { method: 'POST' });
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mode ? { mode } : {}),
+    });
     if (res.ok || res.status === 409) {
       location.href = res.ok ? `/play/${next}` : '/full';
       return;
@@ -138,7 +144,16 @@ const tiles = [
     status.textContent =
       res.status === 429 ? "You've started three runs from this connection today. New runs at midnight UTC." : 'Something went wrong. Try again.';
     play.disabled = false;
-  });
+  }
+
+  play.addEventListener('click', () => (returning ? start() : pick.showModal()));
+  pick.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
+    b.addEventListener('click', () => {
+      pick.close();
+      start(b.dataset.mode);
+    }),
+  );
+  pick.querySelector('[data-pick-close]')!.addEventListener('click', () => pick.close());
 </script>
 
 <style>
@@ -188,68 +203,123 @@ const tiles = [
     color: var(--muted);
   }
 
-  .mode {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin: 20px 0 0;
-    padding: 0;
+  .pick {
+    width: min(640px, calc(100vw - 32px));
+    padding: 32px;
     border: 0;
-  }
-
-  .mode legend {
-    float: left;
-    margin-right: 8px;
-  }
-
-  .mode label {
-    position: relative;
-    cursor: pointer;
-  }
-
-  .mode input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .mode span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 40px;
-    padding: 0 18px;
-    border-radius: 999px;
+    border-radius: var(--radius);
     background: var(--surface);
-    color: var(--muted);
-    font: 700 0.875rem / 1 var(--display);
-    text-transform: uppercase;
-    transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), transform 120ms var(--ease-out);
-  }
-
-  .mode label:hover span {
     color: var(--ink);
   }
 
-  .mode label:active span {
-    transform: scale(0.96);
+  .pick::backdrop {
+    background: rgba(28, 10, 58, 0.82);
   }
 
-  .mode input:checked + span {
-    background: var(--ink);
-    color: var(--deep);
+  .pick[open] {
+    animation: pick-in 260ms var(--ease-out);
   }
 
-  .mode input:focus-visible + span {
+  .pick h2 {
+    font: 800 var(--step-lead) / 1.1 var(--display);
+    text-transform: uppercase;
+  }
+
+  .pick-note {
+    margin-top: 8px;
+    color: var(--muted);
+  }
+
+  .pick-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .pick-option {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    padding: 20px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--deep);
+    color: var(--ink);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), transform 120ms var(--ease-out);
+  }
+
+  .pick-option--normal {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .pick-option:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
+  .pick-option--normal:hover {
+    background: var(--accent-press);
+    color: var(--accent-ink);
+  }
+
+  .pick-option:active {
+    transform: scale(0.97);
+  }
+
+  .pick-option:focus-visible,
+  .pick-back:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
 
-  .mode-note {
-    width: 100%;
-    font-size: var(--step-small);
-    color: var(--muted);
+  .pick-name {
+    font: 800 1.5rem / 1 var(--display);
+    text-transform: uppercase;
   }
+
+  .pick-back {
+    margin-top: 20px;
+    padding: 8px 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .pick-back:hover {
+    color: var(--ink);
+  }
+
+  @keyframes pick-in {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pick[open] {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .pick {
+      padding: 24px 20px;
+    }
+
+    .pick-options {
+      grid-template-columns: 1fr;
+    }
+  }
+
 
   .levels {
     display: grid;

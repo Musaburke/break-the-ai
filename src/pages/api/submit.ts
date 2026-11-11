@@ -56,7 +56,7 @@ export const POST: APIRoute = async ({ cookies, request }) => {
       .prepare('SELECT messages_used, hints_used FROM progress WHERE player_id = ? AND level = ?')
       .bind(player.id, level.number)
       .first<{ messages_used: number; hints_used: number }>();
-    points = levelScore(row?.messages_used ?? 0, row?.hints_used ?? 0);
+    points = levelScore(row?.messages_used ?? 0, row?.hints_used ?? 0, player.mode === 'easy');
   }
   return Response.json({ correct, triesLeft: MAX_SUBMITS - (tries?.n ?? 0) - 1, points });
 };

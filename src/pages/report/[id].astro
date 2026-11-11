@@ -32,6 +32,7 @@ const date = report ? new Date(`${report.date}T00:00:00Z`).toLocaleDateString('e
             <div><dt class="label">Products broken</dt><dd>{report.findings.length}</dd></div>
             <div><dt class="label">Messages</dt><dd>{report.totalMessages}</dd></div>
             <div><dt class="label">Hints</dt><dd>{report.totalHints}</dd></div>
+            {report.easy && <div><dt class="label">Difficulty</dt><dd>Easy</dd></div>}
           </dl>
         </div>
       </section>

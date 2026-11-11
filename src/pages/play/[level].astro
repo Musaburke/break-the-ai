@@ -33,7 +33,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
             </li>
           ))}
         </ol>
-        <p class="label">Level {level.number} of {pips.length} · {level.short}<span class="mode-easy"> · Easy</span></p>
+        <p class="label">Level {level.number} of {pips.length} · {level.short}<span data-easy-tag hidden> · Easy</span></p>
       </div>
 
       <div class="hud-meter">
@@ -73,7 +73,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
         <div class="task-part">
           <p class="label">Your task</p>
           <h1 id="task-title" class="task-goal">{level.goal}</h1>
-          <p class="task-clue mode-easy"><span class="sticker">Clue</span> {level.clue}</p>
+          <p class="task-clue" data-clue hidden><span class="sticker">Clue</span> <span data-clue-text></span></p>
         </div>
         <hr class="dots" />
         <div class="task-part" data-hints>
@@ -318,8 +318,8 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     font-weight: 600;
   }
 
-  /* The clue and the HUD's Easy tag only show on Easy (set in Base.astro from the title screen). */
-  :global(html:not([data-mode='easy'])) .mode-easy {
+  /* The clue arrives from the server on Easy runs only. */
+  .task-clue[hidden] {
     display: none;
   }
 

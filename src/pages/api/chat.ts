@@ -139,7 +139,7 @@ export const POST: APIRoute = async ({ cookies, request }) => {
         const levelLeft = MESSAGES_PER_LEVEL - (counted.results[0]?.messages_used ?? MESSAGES_PER_LEVEL);
         // On a win the secret goes back so the page can highlight it: the player has just extracted it anyway.
         const row = counted.results[0];
-        const points = solved && row ? levelScore(row.messages_used, row.hints_used) : undefined;
+        const points = solved && row ? levelScore(row.messages_used, row.hints_used, player.mode === 'easy') : undefined;
         emit('done', { solved, messagesLeft: spent.messages_left, levelLeft, ...(solved ? { secret, points } : {}) });
       } catch {
         emit('error', 'stream-failed');

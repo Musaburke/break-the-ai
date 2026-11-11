@@ -23,6 +23,7 @@ Break the AI is a game about attacking AI, so it will be attacked. This is what 
 | Forging the model's past replies to steer it | Chat history is read from the server's own log, never sent by the browser. | `src/pages/api/chat.ts` |
 | Sharing answers between players | Each secret is `HMAC(SECRET_KEY, player + level)`. It's never stored, and it's different for every player. | `src/engine/crypto.ts` |
 | Guessing the level 3 PIN | 10 submits per level against 31^6 possibilities. | `src/pages/api/submit.ts` |
+| Seeing the Easy clue and then playing for Normal points | Difficulty is stored on the player row when the run starts and never changes. The clue is only sent by the server to Easy runs (it isn't in the page), and Easy costs 250 points per level. | `src/pages/api/run.ts`, `src/pages/api/hint.ts`, `src/engine/score.ts` |
 | Skipping levels | The chat refuses a level until the previous one is solved, and the debrief redirects until its level is solved. | `src/pages/api/chat.ts`, `src/pages/debrief/[level].astro` |
 | The secret reaching the browser before the output filter sees it | Levels with an output filter collect the whole reply before sending anything. | `src/pages/api/chat.ts` |
 | XSS through model output | Model replies only ever go into the page with `textContent`. There is no `innerHTML` or `set:html` anywhere. | `src/scripts/chat.ts` |
