@@ -125,7 +125,7 @@ const tiles = [
       }
       next = tiles.map((t) => Number(t.dataset.tile)).find((n) => !solved.has(n)) ?? tiles.length;
       play.textContent = solved.size ? `Continue: level ${next}` : 'Play';
-      status.textContent = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left${data.mode === 'easy' ? ' · Easy' : ''}`;
+      status.textContent = `Score ${data.score.toLocaleString('en-GB')} · ${data.messagesLeft} messages left · ${data.mode === 'easy' ? 'Easy' : 'Normal'}`;
       tiles.forEach((t) => t.classList.toggle('tile--next', Number(t.dataset.tile) === next));
     })
     .catch(() => {});

@@ -164,8 +164,8 @@ export async function mountChat(root: HTMLElement) {
   const here = progress.levels.find((l) => l.level === level);
   hud.perLevel = perLevel;
   hud.easy = progress.mode === 'easy';
-  const easyTag = document.querySelector<HTMLElement>('[data-easy-tag]');
-  if (easyTag) easyTag.hidden = !hud.easy;
+  const modeTag = document.querySelector<HTMLElement>('[data-mode-tag]');
+  if (modeTag) modeTag.textContent = ` · ${hud.easy ? 'Easy' : 'Normal'}`;
   hud.used = here?.messagesUsed ?? 0;
   hud.hints = here?.hintsUsed ?? 0;
   renderHud();
