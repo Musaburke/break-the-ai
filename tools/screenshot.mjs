@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // Screenshot a page at desktop (1440) and mobile (390) widths.
 // Usage:
-//   node tools/screenshot.mjs <path-or-url> [label] [--full] [--hd] [--png] [--out <dir>]
+//   node tools/screenshot.mjs <path-or-url> [label] [--full] [--hd] [--png] [--out <dir>] [--cookie <file>]
 //   node tools/screenshot.mjs /about            -> http://localhost:4321/about
 //   node tools/screenshot.mjs https://site.com  -> any URL
 // Output: .tmp/shots/<label>-desktop.jpg and <label>-mobile.jpg (overwritten each run).
+// --cookie <file> sends a saved "name=value" cookie, e.g. .tmp/playtest-cookie, to shoot a level mid-game.
 // Default is 1x JPEG, which is cheap to read back. --hd = 2x, --png = PNG (use both for project captures).
 // Needs Google Chrome installed (uses playwright-core with channel "chrome", no browser download).
 import { chromium } from 'playwright-core';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -17,7 +18,9 @@ const hd = args.includes('--hd');
 const png = args.includes('--png');
 const outIdx = args.indexOf('--out');
 const outDir = outIdx > -1 ? args[outIdx + 1] : '.tmp/shots';
-const positional = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--out');
+const cookieIdx = args.indexOf('--cookie');
+const cookieFile = cookieIdx > -1 ? args[cookieIdx + 1] : undefined;
+const positional = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--out' && args[i - 1] !== '--cookie');
 const target = positional[0] ?? '/';
 const base = process.env.BASE_URL ?? 'http://localhost:4321';
 const url = /^(https?|file):\/\//.test(target) ? target : base + (target.startsWith('/') ? target : '/' + target);
@@ -33,6 +36,11 @@ const browser = await chromium.launch({ channel: 'chrome' });
 try {
   for (const vp of viewports) {
     const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: hd ? 2 : 1 });
+    if (cookieFile) {
+      const [name, ...rest] = readFileSync(cookieFile, 'utf8').trim().split('=');
+      // Domain and path "/", not `url`: a cookie set from the page URL gets its path (/play/) and never reaches /api.
+      await page.context().addCookies([{ name, value: rest.join('='), domain: new URL(url).hostname, path: '/' }]);
+    }
     await page.goto(url, { waitUntil: 'networkidle' });
     await page.evaluate(() => document.fonts.ready);
     if (full) {

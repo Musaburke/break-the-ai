@@ -13,14 +13,14 @@ const errors: Record<string, string> = {
 type LevelProgress = { level: number; messagesUsed: number; hintsUsed: number; solved: number; points: number };
 
 // What the HUD shows. The server keeps the real counts; this mirrors them for display.
-const hud = { used: 0, hints: 0, perLevel: 15, clue: false };
+const hud = { used: 0, hints: 0, perLevel: 15, clue: false, unit: 'messages' };
 
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
 function renderHud() {
   const left = hud.perLevel - hud.used;
   const text = document.querySelector<HTMLElement>('[data-left]');
-  if (text) text.textContent = `${left} message${left === 1 ? '' : 's'} left`;
+  if (text) text.textContent = `${left} ${left === 1 ? hud.unit.slice(0, -1) : hud.unit} left`;
   document.querySelectorAll<HTMLElement>('.meter-bar').forEach((bar, i) => bar.toggleAttribute('data-spent', i >= left));
   // Points still on offer for this level if the next message wins it.
   const points = document.querySelector<HTMLElement>('[data-level-points]');
@@ -68,6 +68,149 @@ function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, 
   panel.hidden = false;
   panel.focus();
   panel.querySelector('[data-leaked-close]')?.addEventListener('click', () => (panel.hidden = true), { once: true });
+}
+
+type ReplyHandlers = {
+  text: (sofar: string) => void;
+  blocked?: (word: string) => void;
+  error: () => void;
+  done: (payload: { solved: boolean; levelLeft: number; secret?: string; points?: number }) => void;
+};
+
+/** Reads the server-sent events of one reply from /api/chat. */
+async function readReply(res: Response, on: ReplyHandlers) {
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  let text = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+    for (const raw of events) {
+      const name = /^event: (.+)$/m.exec(raw)?.[1];
+      const data = /^data: (.+)$/m.exec(raw)?.[1];
+      if (!name || !data) continue;
+      const payload = JSON.parse(data);
+      if (name === 't') {
+        text += payload as string;
+        on.text(text);
+      }
+      if (name === 'blocked') on.blocked?.(payload);
+      if (name === 'error') on.error();
+      if (name === 'done') on.done(payload);
+    }
+  }
+}
+
+/** POSTs to /api/chat; on a refusal, returns the player-facing reason instead of the response. */
+async function sendToChat(body: unknown): Promise<Response | string> {
+  const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (res.ok && res.body) return res;
+  const { error } = (await res.json().catch(() => ({ error: '' }))) as { error: string };
+  return errors[error] ?? 'Something went wrong. Try again.';
+}
+
+type Saved = { turns?: { role: 'user' | 'assistant'; content: string }[] } | null;
+
+/**
+ * Inbox levels: the player sends an email from the task box and reads Inbox Assist's summary.
+ * Each send is a fresh summary, so there's no chat log and no New chat.
+ */
+function mountInbox(root: HTMLElement, form: HTMLFormElement, level: number, perLevel: number, saved: Saved) {
+  const summary = root.querySelector<HTMLElement>('[data-summary]')!;
+  const meta = root.querySelector<HTMLElement>('[data-assist-meta]');
+  const yours = root.querySelector<HTMLElement>('[data-yours]')!;
+  const send = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const field = (name: string) => form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)!;
+  const total = root.querySelectorAll('.inbox-row').length;
+  const note = (text: string) => {
+    summary.textContent = text;
+    summary.dataset.state = 'note';
+  };
+
+  // The email lands on top of the inbox, shown in full: it's the one thing here the player wrote.
+  const showYours = (email: { from: string; subject: string; body: string }) => {
+    yours.querySelector('[data-yours-initial]')!.textContent = email.from.trim()[0]?.toUpperCase() ?? '?';
+    yours.querySelector('[data-yours-from]')!.textContent = email.from;
+    yours.querySelector('[data-yours-subject]')!.textContent = email.subject;
+    yours.querySelector('[data-yours-body]')!.textContent = email.body;
+    yours.hidden = false;
+    if (meta) meta.textContent = `Summary of ${total} emails`;
+  };
+
+  // The body's limit stays in view. Enter is a new line here (the attack needs them), so Ctrl/Cmd+Enter sends.
+  const body = field('body') as HTMLTextAreaElement;
+  const count = form.querySelector<HTMLElement>('[data-count]');
+  const recount = () => count && (count.textContent = `${body.value.length} / ${body.maxLength}`);
+  body.addEventListener('input', recount);
+  body.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  // Coming back shows the last email sent (also put back in the form, to edit) and the summary it got.
+  const turns = saved?.turns ?? [];
+  const lastEmail = [...turns].reverse().find((t) => t.role === 'user');
+  const lastSummary = [...turns].reverse().find((t) => t.role === 'assistant');
+  if (lastEmail) {
+    try {
+      const email = JSON.parse(lastEmail.content) as { from: string; subject: string; body: string };
+      showYours(email);
+      field('from').value = email.from;
+      field('subject').value = email.subject;
+      field('body').value = email.body;
+      recount();
+    } catch {
+      // A malformed log entry: start from an empty form.
+    }
+  }
+  if (lastSummary) {
+    summary.textContent = lastSummary.content;
+    delete summary.dataset.state;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (send.disabled) return;
+    const email = { from: field('from').value.trim(), subject: field('subject').value.trim(), body: field('body').value.trim() };
+    if (!email.from || !email.subject || !email.body) return;
+    send.disabled = true;
+    showYours(email);
+    note('Summarising…');
+    // On a phone the inbox sits under the form: bring the summary into view to watch it arrive.
+    if (matchMedia('(max-width: 860px)').matches) {
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      summary.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
+    }
+
+    const res = await sendToChat({ level, email });
+    if (typeof res === 'string') {
+      note(res);
+      send.disabled = false;
+      return;
+    }
+    await readReply(res, {
+      text: (sofar) => {
+        summary.textContent = sofar;
+        delete summary.dataset.state;
+      },
+      error: () => note('The summary failed. Try again.'),
+      done: (payload) => {
+        hud.used = perLevel - payload.levelLeft;
+        renderHud();
+        if (payload.solved && payload.secret) {
+          markSecret(summary, payload.secret);
+          const secret = payload.secret;
+          setTimeout(() => showLeaked(form, secret, true, payload.points), 700);
+        }
+      },
+    });
+    send.disabled = false;
+  });
 }
 
 // Levels with an output filter are won by typing in the decoded secret.
@@ -165,10 +308,21 @@ function mountHints(level: number, total: number, playable: boolean, easy: boole
 export async function mountChat(root: HTMLElement) {
   const level = Number(root.dataset.level);
   const perLevel = Number(root.dataset.perLevel);
-  const log = root.querySelector<HTMLElement>('[data-log]')!;
+  const inbox = root.dataset.kind === 'inbox';
+  if (inbox) hud.unit = 'emails';
+  const log = root.querySelector<HTMLElement>('[data-log]');
   const form = root.querySelector<HTMLFormElement>('[data-form]')!;
   const input = form.querySelector<HTMLTextAreaElement>('textarea')!;
-  const send = form.querySelector<HTMLButtonElement>('button')!;
+  const send = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  // A line from the game itself: in the chat log, or in the summary panel on an inbox level.
+  const notice = (text: string) => {
+    if (log) bubble(log, 'system', text);
+    const summary = root.querySelector<HTMLElement>('[data-summary]');
+    if (summary) {
+      summary.textContent = text;
+      summary.dataset.state = 'note';
+    }
+  };
 
   // Resumes the run, or reserves one. Full today goes to /full; anything else (including the per-visitor
   // limit, which the home page explains) back to the start.
@@ -182,7 +336,7 @@ export async function mountChat(root: HTMLElement) {
   const progress = (await progressRes.json()) as { levels?: LevelProgress[]; score?: number; mode?: string };
   if (!progressRes.ok || !progress.levels) {
     // The session didn't stick (cookies blocked, or it expired). Say so instead of failing silently.
-    bubble(log, 'system', "Your session didn't start. Check cookies are allowed for this site, then reload.");
+    notice("Your session didn't start. Check cookies are allowed for this site, then reload.");
     send.disabled = true;
     return;
   }
@@ -200,7 +354,7 @@ export async function mountChat(root: HTMLElement) {
   // Levels open in order (the server enforces it); say so up front rather than after a wasted message.
   const previousSolved = level === 1 || progress.levels.some((l) => l.level === level - 1 && l.solved);
   if (!previousSolved) {
-    bubble(log, 'system', `Locked. Solve level ${level - 1} first.`);
+    notice(`Locked. Solve level ${level - 1} first.`);
     send.disabled = true;
     input.disabled = true;
   }
@@ -214,7 +368,16 @@ export async function mountChat(root: HTMLElement) {
   const newChatButton = root.querySelector<HTMLButtonElement>('[data-new-chat]');
   const saved = (await fetch(`/api/conversation?level=${level}`)
     .then((res) => res.json())
-    .catch(() => null)) as { turns?: { role: 'user' | 'assistant'; content: string }[] } | null;
+    .catch(() => null)) as Saved;
+  mountHints(level, Number(root.dataset.hints), previousSolved && !here?.solved, easy);
+  if (inbox) {
+    // A locked level must not overwrite its "Locked" note with an old summary; there isn't one anyway.
+    if (previousSolved) mountInbox(root, form, level, perLevel, saved);
+    // Once the level has started, the brief has been read: fold it so the form fits on the first screen.
+    if (hud.used > 0) document.querySelector<HTMLDetailsElement>('[data-ctx]')?.removeAttribute('open');
+    return;
+  }
+  if (!log) return;
   saved?.turns?.forEach((t) => bubble(log, t.role === 'user' ? 'you' : 'bot', t.content));
   if (here?.solved || !previousSolved) {
     if (newChatButton) newChatButton.hidden = true;
@@ -230,7 +393,6 @@ export async function mountChat(root: HTMLElement) {
       input.focus();
     });
   }
-  mountHints(level, Number(root.dataset.hints), previousSolved && !here?.solved, easy);
   mountSubmit(level, form);
 
   // Enter sends, Shift+Enter adds a line, like every chat widget.
@@ -249,14 +411,9 @@ export async function mountChat(root: HTMLElement) {
     bubble(log, 'you', message);
     input.value = '';
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ level, message }),
-    });
-    if (!res.ok || !res.body) {
-      const { error } = (await res.json().catch(() => ({ error: '' }))) as { error: string };
-      bubble(log, 'system', errors[error] ?? 'Something went wrong. Try again.');
+    const res = await sendToChat({ level, message });
+    if (typeof res === 'string') {
+      bubble(log, 'system', res);
       send.disabled = false;
       return;
     }
@@ -268,41 +425,25 @@ export async function mountChat(root: HTMLElement) {
     typing.textContent = 'Typing…';
     reply.appendChild(typing);
 
-    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffer = '';
-    let text = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += value;
-      const events = buffer.split('\n\n');
-      buffer = events.pop() ?? '';
-      for (const raw of events) {
-        const name = /^event: (.+)$/m.exec(raw)?.[1];
-        const data = /^data: (.+)$/m.exec(raw)?.[1];
-        if (!name || !data) continue;
-        const payload = JSON.parse(data);
-        if (name === 't') {
-          text += payload as string;
-          reply.textContent = text;
-          log.scrollTop = log.scrollHeight;
+    await readReply(res, {
+      text: (sofar) => {
+        reply.textContent = sofar;
+        log.scrollTop = log.scrollHeight;
+      },
+      // Shown above the product's canned refusal, so the player can tell a filter from the model saying no.
+      blocked: (word) => log.insertBefore(bubble(log, 'system', `Blocked by a filter: your message contained "${word}".`), reply),
+      error: () => (reply.textContent = 'The reply failed. Try again.'),
+      done: (payload) => {
+        hud.used = perLevel - payload.levelLeft;
+        renderHud();
+        if (payload.solved && payload.secret) {
+          markSecret(reply, payload.secret);
+          const secret = payload.secret;
+          // A beat to see the secret in the bank's own reply before the takeover.
+          setTimeout(() => showLeaked(form, secret, true, payload.points), 700);
         }
-        if (name === 'blocked') {
-          // Shown above the product's canned refusal, so the player can tell a filter from the model saying no.
-          log.insertBefore(bubble(log, 'system', `Blocked by a filter: your message contained "${payload}".`), reply);
-        }
-        if (name === 'error') reply.textContent = 'The reply failed. Try again.';
-        if (name === 'done') {
-          hud.used = perLevel - payload.levelLeft;
-          renderHud();
-          if (payload.solved) {
-            markSecret(reply, payload.secret);
-            // A beat to see the secret in the bank's own reply before the takeover.
-            setTimeout(() => showLeaked(form, payload.secret, true, payload.points), 700);
-          }
-        }
-      }
-    }
+      },
+    });
     send.disabled = false;
     if (!form.hidden) input.focus();
   });

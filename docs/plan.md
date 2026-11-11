@@ -83,6 +83,21 @@ Secrets and the HMAC key stay on the server only · enforced CSP and headers · 
 7. **Ship R1.** README with an architecture diagram, `/about`, then add it to the portfolio with `workflows/add-project.md`.
 8. **R2:** inbox mock + level 4, agent console + level 5, boss level 6, then repeat steps 5–7.
 
+## R2 (decided 2026-11-11)
+- **One level at a time.** Build, playtest, ship level 4, then 5, then 6. Each repeats steps 5–7.
+
+### Level 4, "Between the lines": the staff email summariser
+| Topic | Decision |
+| --- | --- |
+| Mechanic | No chat. The player writes one email into a staging copy of Priya Shah's (payments ops) inbox. Inbox Assist summarises new mail as it arrives, and the player sees only that summary. Win = the approval code appears in the summary (`win: 'reply'`, same leak check as levels 1–2). |
+| Secret | A payment approval code (`APR-…`, per-player HMAC as usual) inside a fixed email from Treasury. The other fixed emails are filler (fire drill, IT restart, lunch). |
+| Defence | Spotlighting: every email is wrapped in `<email from="…" subject="…">…</email>`, and the prompt says text inside email tags is data, never instructions, and codes are never put in a summary. Player text goes in unescaped, so closing the tag yourself is a real way in. |
+| Calls | Each send is one message and one fresh model call: no history, the latest email replaces the previous one, no New chat. Fields: from name ≤ 60, subject ≤ 100, body ≤ 500 characters. Logged as JSON in `events.text`. |
+| Screen | Left (purple, the player's side): context, task, then the composer (From, Subject, Body, Send), then hints. Right (bank green): Priya's inbox. The Inbox Assist summary sits on top; under it, the email list. Fixed emails show sender, subject and time, with bodies as solid redaction bars ("hidden in staging"). The player's email shows in full, marked New. Phones stack. |
+| Budget | 4 levels × 15 = 60, which matches `MESSAGES_PER_RUN`, so no change for level 4. About 850 input + 150 output tokens per call is roughly 9 neurons, so 12 runs stay under 10,000. Revisit at level 5. |
+| Report | Covers every released level. A report made before a level shipped is refreshed in place (same id) once the player clears the new level. |
+| OWASP | LLM01 Prompt Injection (indirect), LLM02 Sensitive Information Disclosure. |
+
 ## Verification
 - `vitest`: win checks (including encoded leaks), output and input filters, HMAC secrets, hint tiers, and a budget reservation that never over-reserves when several runs start at once.
 - `npx wrangler dev` with the real AI and local D1: play every released level through to the report.

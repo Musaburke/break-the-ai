@@ -1,0 +1,239 @@
+---
+// A staff inbox with Fernleigh's summariser on top, as the bank would ship it. The player can't read
+// the fixed emails (their bodies are redacted bars) and only sees their own email and the summary.
+// Nothing secret is in the page: the bodies are never sent, only their length.
+import '../styles/bank.css';
+import { bank } from '../data/bank';
+import type { InboxEmail } from '../engine/types';
+
+type Props = {
+  owner: string;
+  team: string;
+  assistant: string;
+  emails: InboxEmail[];
+  greeting: string;
+};
+const { owner, team, assistant, emails, greeting } = Astro.props;
+const initial = (name: string) => name.trim()[0]?.toUpperCase() ?? '?';
+// Bar widths that roughly follow each body's length, so the redaction looks like real text was there.
+const bars = (body: string) => {
+  const lines = Math.min(3, Math.max(1, Math.round(body.length / 70)));
+  return Array.from({ length: lines }, (_, i) => (i === lines - 1 ? 40 + ((body.length * 7) % 35) : 92 - i * 6));
+};
+---
+<div data-ui="bank" class="bank-inbox">
+  <div class="bank-head">
+    <span class="bank-logo" aria-hidden="true">{bank.name[0]}</span>
+    <div>
+      <div class="bank-title">Inbox · {owner}</div>
+      <div class="bank-sub">{team} · staging copy, bodies hidden</div>
+    </div>
+  </div>
+
+  <section class="assist" aria-labelledby="assist-title">
+    <div class="assist-head">
+      <h2 id="assist-title" class="assist-name">{assistant}</h2>
+      <span class="assist-meta" data-assist-meta>Summary of {emails.length} emails</span>
+    </div>
+    <p class="assist-text" data-summary aria-live="polite">{greeting}</p>
+  </section>
+
+  <ol class="inbox-list" aria-label={`${owner}'s emails`}>
+    <li class="inbox-row inbox-row--yours" data-yours hidden>
+      <span class="inbox-avatar" aria-hidden="true" data-yours-initial></span>
+      <div class="inbox-main">
+        <div class="inbox-line">
+          <span class="inbox-from" data-yours-from></span>
+          <span class="inbox-new">New</span>
+          <span class="inbox-time">Just now</span>
+        </div>
+        <p class="inbox-subject" data-yours-subject></p>
+        <p class="inbox-body" data-yours-body></p>
+      </div>
+    </li>
+    {emails.map((email) => (
+      <li class="inbox-row">
+        <span class="inbox-avatar" aria-hidden="true">{initial(email.from)}</span>
+        <div class="inbox-main">
+          <div class="inbox-line">
+            <span class="inbox-from">{email.from}</span>
+            <span class="inbox-time">{email.time}</span>
+          </div>
+          <p class="inbox-subject">{email.subject}</p>
+          <span class="visually-hidden">Body hidden in staging.</span>
+          <span class="inbox-redacted" aria-hidden="true">
+            {bars(email.body).map((w) => <span class="inbox-bar" style={`width: ${w}%`}></span>)}
+          </span>
+        </div>
+      </li>
+    ))}
+  </ol>
+</div>
+
+<style>
+  .bank-inbox {
+    height: 100%;
+  }
+
+  .assist {
+    display: grid;
+    gap: 8px;
+    margin: 12px;
+    padding: 14px 16px;
+    border-radius: var(--b-radius-card);
+    background: var(--b-bubble);
+  }
+
+  .assist-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* The bank's own heading, so none of the shell's display type. */
+  .assist-name {
+    font: 600 15px / 1.2 'Geist', system-ui, sans-serif;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--b-brand);
+  }
+
+  .assist-meta {
+    font-size: 12px;
+    color: var(--b-muted);
+  }
+
+  .assist-text {
+    min-height: 3lh;
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .assist-text[data-state='note'] {
+    color: var(--b-muted);
+  }
+
+  .assist-text mark {
+    background: var(--accent, #c6f432);
+    color: var(--accent-ink, #1c0a3a);
+    padding: 0 3px;
+  }
+
+  .inbox-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 12px 12px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .inbox-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own list rows, inside data-ui */
+  }
+
+  .inbox-row[hidden] {
+    display: none;
+  }
+
+  .inbox-row--yours {
+    animation: arrive 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .inbox-avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--b-raised);
+    color: var(--b-brand);
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .inbox-row--yours .inbox-avatar {
+    background: var(--b-brand);
+    color: var(--b-brand-ink);
+  }
+
+  .inbox-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .inbox-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .inbox-from {
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inbox-new {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--b-brand);
+    color: var(--b-brand-ink);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .inbox-time {
+    margin-left: auto;
+    flex: none;
+    font-size: 12px;
+    color: var(--b-muted);
+  }
+
+  .inbox-subject,
+  .inbox-body {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .inbox-body {
+    margin-top: 4px;
+    white-space: pre-wrap;
+    color: var(--b-muted);
+  }
+
+  .inbox-redacted {
+    display: grid;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .inbox-bar {
+    display: block;
+    height: 9px;
+    border-radius: 2px;
+    background: #c4d0c7;
+  }
+
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .inbox-row--yours {
+      animation: none;
+    }
+  }
+</style>

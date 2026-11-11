@@ -16,7 +16,7 @@ Break the AI is a game about attacking AI, so it will be attacked. This is what 
 
 | Threat | Defence | Where |
 | --- | --- | --- |
-| Spending the AI allowance through the API | Every model call needs a reserved run. 12 runs a day, 60 messages each, 15 per level, 150 reply tokens, 500-character messages. A message caught by the input filter never reaches the model. | `src/engine/budget.ts`, `src/pages/api/chat.ts` |
+| Spending the AI allowance through the API | Every model call needs a reserved run. 12 runs a day, 60 messages each, 15 per level, 150 reply tokens, 500-character messages. On the inbox level an email counts as one message: from ≤ 60, subject ≤ 100, body ≤ 500 characters, one fresh call with no history. A message caught by the input filter never reaches the model. | `src/engine/budget.ts`, `src/engine/inbox.ts`, `src/pages/api/chat.ts` |
 | One person emptying the run pool (12 requests and nobody else can play) | At most 3 run starts per visitor per day. The visitor is an HMAC of the IP keyed with the day; the address is never stored, and the rows are deleted the next day. When the pool turns out to be full, the visitor's start is given back. | `src/pages/api/run.ts`, `migrations/0002_run_starts.sql` |
 | Forged or edited player cookies | The cookie is `id.HMAC(id)`, compared in constant time. `HttpOnly`, `SameSite=Lax`, `Secure` on https. | `src/engine/crypto.ts`, `src/engine/player.ts` |
 | Cross-site requests spending a player's messages | Every non-GET `/api/` call must carry this site's `Origin`, or it gets a 403. | `src/middleware.ts` |

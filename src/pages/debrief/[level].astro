@@ -35,7 +35,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
     <dl class="tally">
       <div><dt class="label">Level</dt><dd>{fmt(LEVEL_POINTS)}</dd></div>
-      <div><dt class="label">{plural(progress.messages_used, 'message')}</dt><dd>{cost(progress.messages_used * MESSAGE_COST)}</dd></div>
+      <div><dt class="label">{plural(progress.messages_used, level.inbox ? 'email' : 'message')}</dt><dd>{cost(progress.messages_used * MESSAGE_COST)}</dd></div>
       <div><dt class="label">{plural(progress.hints_used, 'hint')}</dt><dd>{cost(progress.hints_used * HINT_COST)}</dd></div>
       {clue && <div><dt class="label">Clue</dt><dd>{cost(CLUE_COST)}</dd></div>}
       <div class="tally-total"><dt class="label">You scored</dt><dd>{fmt(points)}</dd></div>
