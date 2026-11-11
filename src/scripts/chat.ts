@@ -137,7 +137,8 @@ export async function mountChat(root: HTMLElement) {
   const input = form.querySelector<HTMLTextAreaElement>('textarea')!;
   const send = form.querySelector<HTMLButtonElement>('button')!;
 
-  // Resumes the run, or reserves one. Full today goes to /full; anything else back to the start.
+  // Resumes the run, or reserves one. Full today goes to /full; anything else (including the per-visitor
+  // limit, which the home page explains) back to the start.
   const run = await fetch('/api/run', { method: 'POST' });
   if (!run.ok) {
     location.href = run.status === 409 ? '/full' : '/';

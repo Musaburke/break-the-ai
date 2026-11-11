@@ -135,7 +135,8 @@ const tiles = [
       location.href = res.ok ? `/play/${next}` : '/full';
       return;
     }
-    status.textContent = 'Something went wrong. Try again.';
+    status.textContent =
+      res.status === 429 ? "You've started three runs from this connection today. New runs at midnight UTC." : 'Something went wrong. Try again.';
     play.disabled = false;
   });
 </script>

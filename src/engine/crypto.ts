@@ -36,6 +36,14 @@ export async function verifyPlayer(key: string, cookie: string | undefined): Pro
   return safeEqual(await signPlayer(key, id), cookie) ? id : null;
 }
 
+/**
+ * Stands in for a visitor's IP address when counting their runs. Keyed with the day, so the same
+ * address gives a different value tomorrow and nothing stored can be traced back to it.
+ */
+export async function visitorId(key: string, day: string, ip: string): Promise<string> {
+  return base64url(await hmac(key, `visitor:${day}:${ip}`));
+}
+
 // No 0/O/1/I/L, so a secret read aloud or retyped by the player can't be misread.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
