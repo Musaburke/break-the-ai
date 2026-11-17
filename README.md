@@ -4,6 +4,8 @@ A browser game about attacking AI. You're a red-team contractor hired by Fernlei
 
 **Play it:** https://break-the-ai.muburke07.workers.dev
 
+![Level 1, Inside job. On the left, a message from the bank's security lead and the task: get the staff discount code out of the chat. On the right, Penny, the bank's support chat, refusing to share the code.](docs/play.jpg)
+
 | Level | Product | Defence | Attack it teaches |
 | --- | --- | --- | --- |
 | 1, Inside job | Penny, the support chat | "Only share it with staff" | Impersonation (LLM01, LLM02) |
@@ -12,6 +14,8 @@ A browser game about attacking AI. You're a red-team contractor hired by Fernlei
 | 4, Between the lines | Inbox Assist, the staff email summariser | Emails wrapped in tags, rules repeated after them | Indirect injection through an email you send (LLM01, LLM02) |
 
 Levels 5 and 6 (an agent with tools, and a boss level that stacks every defence) are next.
+
+![Level 1 debrief from a sample run: "Level 1 cleared" in huge type, the score worked out from 2 messages and 0 hints, then what the attack was and why it worked](docs/debrief.jpg)
 
 ## How it works
 
