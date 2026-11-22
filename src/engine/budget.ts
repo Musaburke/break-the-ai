@@ -11,6 +11,17 @@ export const MAX_MESSAGE_LENGTH = 500;
 export const MAX_REPLY_TOKENS = 150;
 /** Previous turns sent with each message. Older turns are dropped to keep the cost per message flat. */
 export const HISTORY_TURNS = 6;
+/** Largest API request body. The longest legal one is an inbox email: 660 characters, up to 4 bytes each, plus JSON. */
+export const MAX_BODY_BYTES = 8 * 1024;
+
+/**
+ * True when a request says its body is over MAX_BODY_BYTES. Content-Length counts bytes, and the runtime
+ * won't deliver more bytes than it states. A body sent without Content-Length (chunked) isn't caught here;
+ * the routes' own length checks still apply to it.
+ */
+export function bodyTooBig(headers: Headers): boolean {
+  return Number(headers.get('Content-Length') ?? 0) > MAX_BODY_BYTES;
+}
 
 export function utcDay(now = new Date()): string {
   return now.toISOString().slice(0, 10);
