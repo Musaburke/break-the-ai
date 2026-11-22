@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /api/
+
+# TODO(musa): add a Sitemap line once the public domain is decided.
