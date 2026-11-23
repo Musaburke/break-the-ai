@@ -19,6 +19,7 @@ const fmt = (n: number) => n.toLocaleString('en-GB');
 const date = report ? new Date(`${report.date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 ---
 <Base
+  noindex
   title={report ? `Pentest report: ${bank.name} · Break the AI` : 'Report not found · Break the AI'}
   description={report ? `${report.findings.length} of ${bank.name}'s AI products broken${score !== null ? ` for ${fmt(score)} points` : ''}.` : undefined}
 >

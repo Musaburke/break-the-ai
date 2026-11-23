@@ -4,6 +4,7 @@ import { leaks, normalise } from '../src/engine/leak';
 import { createSseParser, sseEvent } from '../src/engine/sse';
 import { buildMessages } from '../src/engine/prompt';
 import { level01 } from '../src/levels/01';
+import { bodyTooBig, MAX_BODY_BYTES } from '../src/engine/budget';
 
 const KEY = 'test-key';
 
@@ -94,5 +95,20 @@ describe('prompt', () => {
 describe('levels', () => {
   it('every system prompt has a secret slot', () => {
     expect(level01.systemPrompt).toContain('{{secret}}');
+  });
+});
+
+describe('API body cap', () => {
+  const sized = (n: string | null) => new Headers(n === null ? {} : { 'Content-Length': n });
+  it('allows bodies up to 8 KB, refuses bigger ones', () => {
+    expect(bodyTooBig(sized(String(MAX_BODY_BYTES)))).toBe(false);
+    expect(bodyTooBig(sized(String(MAX_BODY_BYTES + 1)))).toBe(true);
+  });
+  it('leaves a missing length to the routes', () => {
+    expect(bodyTooBig(sized(null))).toBe(false);
+  });
+  it('fits the longest legal inbox email', () => {
+    const email = JSON.stringify({ level: 4, email: { from: '😀'.repeat(60), subject: '😀'.repeat(100), body: '😀'.repeat(500) } });
+    expect(new TextEncoder().encode(email).length).toBeLessThan(MAX_BODY_BYTES);
   });
 });

@@ -27,7 +27,7 @@ const fmt = (n: number) => n.toLocaleString('en-GB');
 const cost = (n: number) => (n ? `−${fmt(n)}` : '0');
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 ---
-<Base title={`Level ${level.number} cleared · Break the AI`}>
+<Base title={`Level ${level.number} cleared · Break the AI`} noindex>
   <section class="head wrap" aria-labelledby="debrief-title">
     <span class="sticker">+{fmt(points)} pts</span>
     <h1 id="debrief-title">Level {level.number} cleared</h1>

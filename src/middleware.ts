@@ -1,4 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
+import { bodyTooBig } from './engine/budget';
 
 // public/_headers only covers static assets. Responses from the Worker (the /api routes and the
 // on-demand pages such as /debrief) get their headers here. Keep the page CSP in step with _headers.
@@ -24,6 +25,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Cross-site requests can't spend a player's messages: every state-changing call must come from this site.
   if (isApi && request.method !== 'GET' && request.headers.get('Origin') !== url.origin) {
     return Response.json({ error: 'bad-origin' }, { status: 403 });
+  }
+
+  // Every API body is a few hundred bytes. Refuse big ones before the route reads them.
+  if (isApi && request.method !== 'GET' && bodyTooBig(request.headers)) {
+    return Response.json({ error: 'too-big' }, { status: 413 });
   }
 
   const response = await next();
