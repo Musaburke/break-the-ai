@@ -11,8 +11,8 @@ import { buildInboxMessages, readEmail, wrapEmail } from '../src/engine/inbox';
 
 describe('every level', () => {
   it.each(levels)('level $number is well formed', (level) => {
-    // The secret is in the hidden prompt, or on inbox levels in one of the emails.
-    const holders = [level.systemPrompt, ...(level.inbox?.emails.map((e) => e.body) ?? [])];
+    // The secret is in the hidden prompt, or on inbox levels in one of the emails, or on agent levels in one account.
+    const holders = [level.systemPrompt, ...(level.inbox?.emails.map((e) => e.body) ?? []), ...(level.agent?.accounts.map((a) => a.notes) ?? [])];
     expect(holders.filter((t) => t.includes('{{secret}}'))).toHaveLength(1);
     expect(level.hints).toHaveLength(3);
     expect(level.debrief.owasp.length).toBeGreaterThan(0);

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { MESSAGES_PER_LEVEL } from '../../engine/budget';
-import { chatHistory } from '../../engine/history';
+import { chatHistory, toolHistory } from '../../engine/history';
 import { currentPlayer } from '../../engine/player';
 import { getLevel } from '../../levels';
 
@@ -14,7 +14,9 @@ export const GET: APIRoute = async ({ cookies, url }) => {
   const level = getLevel(Number(url.searchParams.get('level')));
   if (!level) return Response.json({ error: 'bad-level' }, { status: 400 });
   // Every turn a level allows: a message and a reply for each.
-  return Response.json({ turns: await chatHistory(env.DB, player.id, level.number, MESSAGES_PER_LEVEL * 2) });
+  const turns = await chatHistory(env.DB, player.id, level.number, MESSAGES_PER_LEVEL * 2);
+  // Agent levels also get their tool log back. Only this player's own calls, so nothing new is revealed.
+  return Response.json(level.agent ? { turns, tools: await toolHistory(env.DB, player.id, level.number) } : { turns });
 };
 
 // Starts the conversation on a level over: the model forgets earlier turns, so one refusal doesn't

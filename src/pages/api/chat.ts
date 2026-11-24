@@ -10,6 +10,7 @@ import { currentPlayer } from '../../engine/player';
 import { buildMessages } from '../../engine/prompt';
 import { createSseParser, sseEvent } from '../../engine/sse';
 import { levelScore } from '../../engine/score';
+import { ONE_TOOL_REPLY, crossedAccount, parseToolCall, runTool, withToolResult, type ToolRecord } from '../../engine/tools';
 import { getLevel } from '../../levels';
 
 export const prerender = false;
@@ -81,15 +82,19 @@ export const POST: APIRoute = async ({ cookies, request }) => {
   const blocked = blockedInput(level, message);
 
   // A message caught by the input filter never reaches the model, and costs nothing from the allowance.
+  // Agent levels have no secret in the prompt: it only reaches the model in a tool result.
+  const messages = email ? buildInboxMessages(level, secret, email) : buildMessages(level, secret, history, message);
+  const callModel = (input: { role: string; content: string }[]) =>
+    env.AI.run(level.model as Parameters<Ai['run']>[0], {
+      messages: input,
+      max_tokens: MAX_REPLY_TOKENS,
+      temperature: 0.3,
+      stream: true,
+    } as never) as unknown as Promise<ReadableStream<Uint8Array>>;
   let upstream: ReadableStream<Uint8Array> | null = null;
   if (!blocked) {
     try {
-      upstream = (await env.AI.run(level.model as Parameters<Ai['run']>[0], {
-        messages: email ? buildInboxMessages(level, secret, email) : buildMessages(level, secret, history, message),
-        max_tokens: MAX_REPLY_TOKENS,
-        temperature: 0.3,
-        stream: true,
-      } as never)) as unknown as ReadableStream<Uint8Array>;
+      upstream = await callModel(messages);
     } catch {
       // Usually the daily allowance (429 from Workers AI). Give the message back; it never reached the model.
       await db.batch([
@@ -114,21 +119,56 @@ export const POST: APIRoute = async ({ cookies, request }) => {
       }
     };
     let raw = '';
+    let tool: ToolRecord | null = null;
+    /** Reads one model stream to the end, passing each piece of text on. */
+    const read = async (stream: ReadableStream<Uint8Array>, onText: (text: string) => void) => {
+      const parser = createSseParser(onText);
+      const reader = stream.getReader();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        parser.push(value);
+      }
+      parser.end();
+    };
     try {
-      if (upstream) {
+      if (upstream && level.agent) {
+        // The first reply is read whole before anything is shown: it may be a tool call, not words.
+        let first = '';
+        await read(upstream, (text) => (first += text));
+        const call = parseToolCall(first);
+        if (!call) {
+          raw = first;
+          emit('t', raw);
+        } else {
+          // One tool call per message. The fake tool runs, the log panel gets the call and its result, and the
+          // model is called once more to answer with the result in front of it.
+          tool = runTool(level, call, secret);
+          emit('tool', tool);
+          let gate: 'open' | 'held' | null = null;
+          try {
+            await read(await callModel(withToolResult(messages, call, tool)), (text) => {
+              raw += text;
+              // A reply that starts like JSON is held back: it may be a second tool call, which doesn't run.
+              gate ??= raw.trimStart() ? (/^[{`]/.test(raw.trimStart()) ? 'held' : 'open') : null;
+              if (gate === 'open') emit('t', text);
+            });
+            if (gate !== 'open') {
+              if (parseToolCall(raw)) raw = ONE_TOOL_REPLY;
+              emit('t', raw);
+            }
+          } catch {
+            raw = "The agent couldn't finish that. Try again.";
+            emit('t', raw);
+          }
+        }
+      } else if (upstream) {
         // With an output filter nothing can be streamed: the secret would reach the browser before the
         // filter saw the whole reply. Those levels collect the reply first and send it in one piece.
-        const parser = createSseParser((text) => {
+        await read(upstream, (text) => {
           raw += text;
           if (!level.outputFilter) emit('t', text);
         });
-        const reader = upstream.getReader();
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          parser.push(value);
-        }
-        parser.end();
       }
 
       const shown = blocked ? filteredReply(level) : shownReply(level, raw, secret);
@@ -136,12 +176,15 @@ export const POST: APIRoute = async ({ cookies, request }) => {
       if (blocked || level.outputFilter) emit('t', shown);
 
       // Win check on the server. Filtered levels are won by submitting the decoded secret instead.
-      const solved = level.win === 'reply' && !blocked && leaks(raw, secret);
+      // On agent levels a tool pointed at any account but the signed-in one wins, checked here, not by the model.
+      const solved = level.win === 'reply' && !blocked && (leaks(raw, secret) || (tool !== null && crossedAccount(tool)));
       const ts = new Date().toISOString();
       // The log keeps what the player saw, so the history sent back to the model matches the chat.
-      const writes = [
+      const writes = [];
+      if (tool) writes.push(db.prepare("INSERT INTO events (player_id, level, ts, kind, text) VALUES (?, ?, ?, 'tool', ?)").bind(player.id, level.number, ts, JSON.stringify(tool)));
+      writes.push(
         db.prepare('INSERT INTO events (player_id, level, ts, kind, text) VALUES (?, ?, ?, ?, ?)').bind(player.id, level.number, ts, 'reply', shown),
-      ];
+      );
       if (blocked) writes.push(db.prepare("INSERT INTO events (player_id, level, ts, kind) VALUES (?, ?, ?, 'blocked')").bind(player.id, level.number, ts));
       if (solved) {
         writes.push(
