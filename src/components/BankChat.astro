@@ -33,7 +33,9 @@ const { title, subtitle, greeting, sample = [], live = false, label, agent } = A
       <div class="bank-tools-head">
         <h2 class="bank-tools-title" id="bank-tools-title">Agent actions<span data-tool-count></span></h2>
         <p class="bank-tools-who">Signed in: {agent.name} · {agent.id}</p>
+        <button type="button" class="bank-tools-more" data-tool-more aria-expanded="false" aria-controls="bank-tools-body">Show all</button>
       </div>
+      <div class="bank-tools-body" id="bank-tools-body">
       <ol class="bank-tools-list" data-tool-log aria-live="polite">
         <li class="bank-tools-empty" data-tool-empty>No actions yet. When the agent looks up an account or issues a refund, it shows here.</li>
       </ol>
@@ -47,6 +49,7 @@ const { title, subtitle, greeting, sample = [], live = false, label, agent } = A
             </div>
           ))}
         </dl>
+      </div>
       </div>
     </section>
   )}

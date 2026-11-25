@@ -423,40 +423,82 @@
   }
 }
 
+/* Only shown on narrow screens, where the panel folds to the newest action. */
+.bank-tools-more {
+  display: none;
+}
+
+.bank-tools-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 @media (max-width: 1180px) {
   .bank-chat--agent {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     grid-template-areas: 'head' 'tools' 'log' 'form';
   }
-  /* The whole panel scrolls here, so the tools list stays reachable under the log; the header stays put. */
+  /* Folded, the panel shows the newest action whole and nothing cut off. "Show all" opens the full log and the
+     tools list, with its own scroll. */
   .bank-tools {
-    max-height: 184px;
-    overflow-y: auto;
     border-left: 0;
     border-bottom: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own panel edge, inside data-ui */
   }
   .bank-tools-head {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
     column-gap: 12px;
-    padding: 10px 14px 8px;
-    background: var(--b-surface);
+    padding: 8px 14px;
+  }
+  .bank-tools-who {
+    margin: 0;
+    flex: 1;
+  }
+  .bank-tools-more {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--b-radius-control);
+    background: var(--b-bubble);
+    color: var(--b-brand);
+    font: 500 13px/1 'Geist', system-ui, sans-serif;
+    cursor: pointer;
+    transition: transform 140ms ease-out;
+  }
+  .bank-tools-more:active {
+    transform: scale(0.97);
+  }
+  .bank-tools-more:focus-visible {
+    outline: 2px solid var(--b-brand);
+    outline-offset: 2px;
+  }
+  .bank-tools-more[hidden] {
+    display: none;
   }
   .bank-tools-list {
     overflow: visible;
     flex: none;
+    padding-bottom: 10px;
+  }
+  .bank-tools:not([data-open]) .bank-tool ~ .bank-tool,
+  .bank-tools:not([data-open]) .bank-tools-avail {
+    display: none;
+  }
+  .bank-tools[data-open] .bank-tools-body {
+    max-height: 46svh;
+    overflow-y: auto;
   }
 }
 
 @media (max-width: 480px) {
-  .bank-tools {
-    max-height: 168px;
+  .bank-tools-who {
+    font-size: 12px;
   }
 }
 

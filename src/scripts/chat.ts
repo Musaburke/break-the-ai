@@ -99,6 +99,19 @@ function countTools(list: HTMLElement) {
   if (el) el.textContent = count ? ` · ${count}` : '';
 }
 
+/** Narrow screens fold the action log to the newest call; this button opens the rest and the tools list. */
+function mountToolToggle(list: HTMLElement) {
+  const panel = list.closest<HTMLElement>('.bank-tools');
+  const button = panel?.querySelector<HTMLButtonElement>('[data-tool-more]');
+  if (!panel || !button) return;
+  button.addEventListener('click', () => {
+    const open = !panel.hasAttribute('data-open');
+    panel.toggleAttribute('data-open', open);
+    button.setAttribute('aria-expanded', String(open));
+    button.textContent = open ? 'Show less' : 'Show all';
+  });
+}
+
 /**
  * Adds one tool call to the agent's action log, newest on top. Every field came from the model or from a
  * result the model asked for, so it's all set through textContent.
@@ -459,7 +472,10 @@ export async function mountChat(root: HTMLElement) {
   saved?.turns?.forEach((t) => bubble(log, t.role === 'user' ? 'you' : 'bot', t.content));
   // Agent levels: the action log since the latest new chat, oldest first, so the newest ends on top.
   const toolLog = root.querySelector<HTMLElement>('[data-tool-log]');
-  if (toolLog) saved?.tools?.forEach((rec) => toolEntry(toolLog, rec));
+  if (toolLog) {
+    saved?.tools?.forEach((rec) => toolEntry(toolLog, rec));
+    mountToolToggle(toolLog);
+  }
   if (here?.solved || !previousSolved) {
     if (newChatButton) newChatButton.hidden = true;
   } else {
