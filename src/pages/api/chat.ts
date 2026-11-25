@@ -100,6 +100,11 @@ export const POST: APIRoute = async ({ cookies, request }) => {
       await db.batch([
         db.prepare('UPDATE players SET messages_left = messages_left + 1 WHERE id = ?').bind(player.id),
         db.prepare('UPDATE progress SET messages_used = messages_used - 1 WHERE player_id = ? AND level = ?').bind(player.id, level.number),
+        db.prepare('UPDATE days SET messages_used = messages_used - 1 WHERE date = ?').bind(player.run_date),
+        // And take it out of the log, or it comes back in the chat and in the history sent to the model.
+        db
+          .prepare("DELETE FROM events WHERE id = (SELECT MAX(id) FROM events WHERE player_id = ? AND level = ? AND kind = 'message')")
+          .bind(player.id, level.number),
       ]);
       return fail('ai-unavailable', 503);
     }
