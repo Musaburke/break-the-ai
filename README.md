@@ -12,8 +12,9 @@ A browser game about attacking AI. You're a red-team contractor hired by Fernlei
 | 2, Choose your words | Penny, patched | Keyword filter and a hardened prompt | Reframing the request (LLM01, LLM07) |
 | 3, Spell it out | The app's help centre | Output filter | Encoding the secret past the filter (LLM02, LLM05) |
 | 4, Between the lines | Inbox Assist, the staff email summariser | Emails wrapped in tags, rules repeated after them | Indirect injection through an email you send (LLM01, LLM02) |
+| 5, Too much power | The banking agent, which can look up accounts and issue refunds | A rule in the prompt: only the signed-in customer's account | Talking an agent into acting on someone else's account (LLM06, LLM01) |
 
-Levels 5 and 6 (an agent with tools, and a boss level that stacks every defence) are next.
+Level 6, a boss level that stacks every defence, is next.
 
 ![Level 1 debrief from a sample run: "Level 1 cleared" in huge type, the score worked out from 2 messages and 0 hints, then what the attack was and why it worked](docs/debrief.jpg)
 
@@ -33,7 +34,7 @@ flowchart LR
 - **One Worker.** Astro 7 with `@astrojs/cloudflare`. Pages are prerendered and served as static assets. The API routes in `src/pages/api/` run on the Worker. `src/worker.ts` wraps Astro's handler so the same Worker also runs the daily clean-up.
 - **The server decides everything that counts.** It builds the prompt, applies the input and output filters, checks for the leak, keeps the score, and reads chat history from its own log. Replies stream to the page as server-sent events and are only ever inserted as text.
 - **Secrets are never stored.** Each one is `HMAC(SECRET_KEY, player + level)`, so every player's answer is different and the prompts can be public.
-- **A shared AI allowance.** No model call happens without a reserved run: 12 runs of 60 messages a day, at most 3 starts per visitor (a day-keyed hash of the IP, never the IP itself). The account is on the free plan with no card, so the worst case is a full day, never a bill.
+- **A shared AI allowance.** No model call happens without a reserved run: 8 runs of 75 messages a day, at most 3 starts per visitor (a day-keyed hash of the IP, never the IP itself). The account is on the free plan with no card, so the worst case is a full day, never a bill.
 - **Levels are data.** One file each in `src/levels/`, on a shared engine in `src/engine/`.
 
 The threat model, with every defence and the gaps accepted for now, is in [`docs/security.md`](docs/security.md). The design decisions and their reasons are in [`docs/plan.md`](docs/plan.md).

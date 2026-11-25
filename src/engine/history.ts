@@ -1,3 +1,4 @@
+import { readToolRecord, type ToolRecord } from './tools';
 import type { Turn } from './types';
 
 /**
@@ -14,4 +15,17 @@ export async function chatHistory(db: D1Database, playerId: string, level: numbe
     .bind(playerId, level, limit)
     .all<{ kind: string; text: string }>();
   return results.reverse().map((e) => ({ role: e.kind === 'message' ? 'user' : 'assistant', content: e.text }));
+}
+
+/** The tool calls on an agent level since the latest new chat, oldest first, for the log panel. */
+export async function toolHistory(db: D1Database, playerId: string, level: number): Promise<ToolRecord[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT text FROM events WHERE player_id = ?1 AND level = ?2 AND kind = 'tool' AND text IS NOT NULL
+         AND id > COALESCE((SELECT MAX(id) FROM events WHERE player_id = ?1 AND level = ?2 AND kind = 'reset'), 0)
+       ORDER BY id`,
+    )
+    .bind(playerId, level)
+    .all<{ text: string }>();
+  return results.map((r) => readToolRecord(r.text)).filter((r): r is ToolRecord => r !== null);
 }

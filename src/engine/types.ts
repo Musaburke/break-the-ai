@@ -7,6 +7,16 @@ export type InboxEmail = { from: string; subject: string; time: string; body: st
 /** The email the player writes on an inbox level. Every field is untrusted. */
 export type PlayerEmail = { from: string; subject: string; body: string };
 
+/** A fake account on an agent level. `{{secret}}` in the notes is replaced on the server. */
+export type BankAccount = {
+  id: string;
+  holder: string;
+  balance: number;
+  /** Recent card payments, newest first. */
+  payments: { date: string; merchant: string; amount: number }[];
+  notes: string;
+};
+
 export type Level = {
   number: number;
   /** Workers AI model id. */
@@ -54,6 +64,16 @@ export type Level = {
     reminder: string;
     /** Fixed emails, newest first. The player's lands on top. */
     emails: InboxEmail[];
+  };
+  /**
+   * Agent levels: the chat model can call fake tools on bank accounts, one call per message, through a
+   * JSON protocol the Worker parses. Calling a tool on any account but the signed-in one wins the level.
+   * The secret sits in one of the account records, so it only reaches the model through a tool result.
+   */
+  agent?: {
+    /** The signed-in customer: the only account the prompt allows. */
+    customer: { name: string; id: string };
+    accounts: BankAccount[];
   };
   /** Three tiers: a nudge, the technique's name, a near-example. */
   hints: [string, string, string];

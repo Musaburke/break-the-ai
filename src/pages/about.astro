@@ -13,7 +13,7 @@ const parts = [
   {
     title: 'The stack',
     body: [
-      `Astro on one Cloudflare Worker. The pages are built ahead of time, and the API runs on the Worker next to them. D1 holds players, progress and the message log. Workers AI runs the bank's chatbots: Llama 3.1 8B, and the smaller Llama 3.2 1B on level 2, where a keyword filter does the defending.`,
+      `Astro on one Cloudflare Worker. The pages are built ahead of time, and the API runs on the Worker next to them. D1 holds players, progress and the message log. Workers AI runs the bank's chatbots: Llama 3.1 8B, and the smaller Llama 3.2 1B on level 2, where a keyword filter does the defending. On level 5 the model can ask for one of two fake tools; the Worker runs it, shows the call in the bank's action log and checks whose account it touched.`,
       'Replies stream to the page as server-sent events, through plain TypeScript with no UI framework. The whole thing runs on the free plan with no card on the account, so going over a limit stops the game for the day and never sends a bill.',
     ],
   },
@@ -49,7 +49,7 @@ const parts = [
     title: 'Honest limits',
     body: [
       'Small models are inconsistent. The same message can win once and miss the next time, and each level was tuned by playtesting, not proven.',
-      `The run limit is per connection, so someone with many addresses can still fill the day. The worst case is a full day, never a bill. ${levels.length} of 6 levels are live: the banking agent and the boss come next.`,
+      `The run limit is per connection, so someone with many addresses can still fill the day. The worst case is a full day, never a bill. ${levels.length} of 6 levels are live: the boss comes next.`,
     ],
   },
 ];

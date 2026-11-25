@@ -1,11 +1,14 @@
 // The free plan allows 10,000 Workers AI neurons a day across the whole site.
-// A message costs roughly 8 to 11 neurons, so a run of 60 messages is about 600. Twelve runs a day leaves
-// headroom for the boss level's judge calls and for testing, which uses the same allowance.
+// A chat message costs roughly 8 to 11 neurons. A level 5 message can make two model calls (the tool call,
+// then the answer) with a longer prompt, so it's estimated at about 24. A run is 4 levels × 15 messages at
+// about 10, plus 15 at about 24: roughly 960 neurons. Eight runs a day is about 7,700, which leaves headroom
+// for testing, which uses the same allowance. tests/budget.test.ts fails if these numbers stop fitting.
+// The estimates are from the pricing page, not measured; re-check them once level 5 is live.
 
-export const RUNS_PER_DAY = 12;
+export const RUNS_PER_DAY = 8;
 /** Runs one visitor (one IP address) can start in a day, so a single person can't empty the pool. */
 export const RUNS_PER_VISITOR = 3;
-export const MESSAGES_PER_RUN = 60;
+export const MESSAGES_PER_RUN = 75;
 export const MESSAGES_PER_LEVEL = 15;
 export const MAX_MESSAGE_LENGTH = 500;
 export const MAX_REPLY_TOKENS = 150;
@@ -13,6 +16,13 @@ export const MAX_REPLY_TOKENS = 150;
 export const HISTORY_TURNS = 6;
 /** Largest API request body. The longest legal one is an inbox email: 660 characters, up to 4 bytes each, plus JSON. */
 export const MAX_BODY_BYTES = 8 * 1024;
+
+/** Estimated neurons per message, from the Workers AI pricing page (see the note at the top). */
+export const NEURONS_PER_CHAT_MESSAGE = 10;
+export const NEURONS_PER_AGENT_MESSAGE = 24;
+/** The free daily allowance, and the share of it the game plans to use. The rest is headroom. */
+export const DAILY_NEURONS = 10_000;
+export const PLANNED_NEURONS = 8_000;
 
 /**
  * True when a request says its body is over MAX_BODY_BYTES. Content-Length counts bytes, and the runtime

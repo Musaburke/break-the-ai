@@ -1,5 +1,6 @@
 // The chat on /play/[level]. Model output is untrusted, so it only ever goes in through textContent.
 import { levelScore } from '../engine/score';
+import type { ToolRecord } from '../engine/tools';
 
 const errors: Record<string, string> = {
   'no-player': 'Your session has ended. Start the contract again from the home page.',
@@ -13,7 +14,7 @@ const errors: Record<string, string> = {
 type LevelProgress = { level: number; messagesUsed: number; hintsUsed: number; solved: number; points: number };
 
 // What the HUD shows. The server keeps the real counts; this mirrors them for display.
-const hud = { used: 0, hints: 0, perLevel: 15, clue: false, unit: 'messages' };
+const hud = { used: 0, hints: 0, perLevel: 15, clue: false, unit: 'messages', done: false };
 
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
@@ -24,7 +25,8 @@ function renderHud() {
   document.querySelectorAll<HTMLElement>('.meter-bar').forEach((bar, i) => bar.toggleAttribute('data-spent', i >= left));
   // Points still on offer for this level if the next message wins it.
   const points = document.querySelector<HTMLElement>('[data-level-points]');
-  if (points) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.clue));
+  // Once the level is solved it shows the score it got instead (set by showLeaked).
+  if (points && !hud.done) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.clue));
 }
 type Who = 'you' | 'bot' | 'system';
 
@@ -47,8 +49,9 @@ function markSecret(item: HTMLElement, secret: string) {
   item.replaceChildren(text.slice(0, at), mark, text.slice(at + secret.length));
 }
 
-function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, points?: number) {
+function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, points?: number, note = '') {
   chatForm.hidden = true;
+  hud.done = true;
   // The way on stays in the task box after the Leaked screen closes.
   const cleared = document.querySelector<HTMLElement>('[data-cleared]');
   if (cleared) cleared.hidden = false;
@@ -58,7 +61,12 @@ function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, 
   const secretEl = panel.querySelector<HTMLElement>('[data-leaked-secret]')!;
   secretEl.textContent = secret ? secret.toUpperCase() : '';
   panel.querySelector<HTMLElement>('[data-leaked-points]')!.textContent = points ? `+${fmt(points)} pts` : '';
+  const noteEl = panel.querySelector<HTMLElement>('[data-leaked-note]');
+  if (noteEl) noteEl.textContent = note;
   if (points) {
+    // The level is over: the HUD shows what it scored, not what a next message would be worth.
+    const levelPoints = document.querySelector<HTMLElement>('[data-level-points]');
+    if (levelPoints) levelPoints.textContent = fmt(points);
     const score = document.querySelector<HTMLElement>('[data-score]');
     if (score) score.textContent = fmt(Number(score.textContent?.replace(/\D/g, '') || 0) + points);
     document.querySelector(`[data-pip="${document.querySelector<HTMLElement>('[data-chat]')?.dataset.level}"]`)?.setAttribute('data-solved', '');
@@ -70,8 +78,86 @@ function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, 
   panel.querySelector('[data-leaked-close]')?.addEventListener('click', () => (panel.hidden = true), { once: true });
 }
 
+const TOOL_LABELS: Record<string, string> = { lookup_account: 'Looked up an account', issue_refund: 'Issued a refund' };
+
+/** What a tool result says in one line: the error, or what happened. */
+function toolStatus(rec: ToolRecord): string {
+  if (!rec.ok) {
+    try {
+      return (JSON.parse(rec.result) as { error?: string }).error ?? 'Failed.';
+    } catch {
+      return 'Failed.';
+    }
+  }
+  return rec.tool === 'issue_refund' ? `Refund of £${rec.amount?.toFixed(2)} queued.` : 'Returned the account record.';
+}
+
+/** Shows how many calls are in the log next to its title: on a phone only the newest one is in view. */
+function countTools(list: HTMLElement) {
+  const count = list.querySelectorAll('.bank-tool').length;
+  const el = list.closest('[data-ui]')?.querySelector<HTMLElement>('[data-tool-count]');
+  if (el) el.textContent = count ? ` · ${count}` : '';
+}
+
+/** Narrow screens fold the action log to the newest call; this button opens the rest and the tools list. */
+function mountToolToggle(list: HTMLElement) {
+  const panel = list.closest<HTMLElement>('.bank-tools');
+  const button = panel?.querySelector<HTMLButtonElement>('[data-tool-more]');
+  if (!panel || !button) return;
+  button.addEventListener('click', () => {
+    const open = !panel.hasAttribute('data-open');
+    panel.toggleAttribute('data-open', open);
+    button.setAttribute('aria-expanded', String(open));
+    button.textContent = open ? 'Show less' : 'Show all';
+  });
+}
+
+/**
+ * Adds one tool call to the agent's action log, newest on top. Every field came from the model or from a
+ * result the model asked for, so it's all set through textContent.
+ */
+function toolEntry(list: HTMLElement, rec: ToolRecord, fresh = false): HTMLElement {
+  list.querySelector('[data-tool-empty]')?.setAttribute('hidden', '');
+  const item = document.createElement('li');
+  item.className = fresh ? 'bank-tool bank-tool--new' : 'bank-tool';
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = '') => {
+    const node = document.createElement(tag);
+    node.className = cls;
+    node.textContent = text;
+    return node;
+  };
+
+  const top = el('div', 'bank-tool-top');
+  top.appendChild(el('span', 'bank-tool-name', TOOL_LABELS[rec.tool] ?? rec.tool));
+  if (rec.account) {
+    const acct = el('span', 'bank-tool-acct', `${rec.account} · ${rec.own ? 'You' : 'Not you'}`);
+    if (!rec.own) acct.dataset.other = '';
+    top.appendChild(acct);
+  }
+  const args = [rec.account ? `"${rec.account}"` : '', rec.amount !== undefined ? String(rec.amount) : ''].filter(Boolean).join(', ');
+  const status = el('p', 'bank-tool-status', toolStatus(rec));
+  if (!rec.ok) status.dataset.failed = '';
+
+  const details = document.createElement('details');
+  details.appendChild(el('summary', '', 'Result'));
+  let pretty = rec.result;
+  try {
+    pretty = JSON.stringify(JSON.parse(rec.result), null, 2);
+  } catch {
+    // Not JSON: show it as it came.
+  }
+  details.appendChild(el('pre', 'bank-tool-result', pretty));
+
+  for (const part of [top, el('p', 'bank-tool-call', `${rec.tool}(${args})`), status, details]) item.appendChild(part);
+  list.insertBefore(item, list.firstChild);
+  list.scrollTop = 0;
+  countTools(list);
+  return item;
+}
+
 type ReplyHandlers = {
   text: (sofar: string) => void;
+  tool?: (rec: ToolRecord) => void;
   blocked?: (word: string) => void;
   error: () => void;
   done: (payload: { solved: boolean; levelLeft: number; secret?: string; points?: number }) => void;
@@ -98,6 +184,7 @@ async function readReply(res: Response, on: ReplyHandlers) {
         on.text(text);
       }
       if (name === 'blocked') on.blocked?.(payload);
+      if (name === 'tool') on.tool?.(payload);
       if (name === 'error') on.error();
       if (name === 'done') on.done(payload);
     }
@@ -112,7 +199,7 @@ async function sendToChat(body: unknown): Promise<Response | string> {
   return errors[error] ?? 'Something went wrong. Try again.';
 }
 
-type Saved = { turns?: { role: 'user' | 'assistant'; content: string }[] } | null;
+type Saved = { turns?: { role: 'user' | 'assistant'; content: string }[]; tools?: ToolRecord[] } | null;
 
 /**
  * Inbox levels: the player sends an email from the task box and reads Inbox Assist's summary.
@@ -350,7 +437,11 @@ export async function mountChat(root: HTMLElement) {
   renderHud();
   document.querySelector<HTMLElement>('[data-score]')!.textContent = fmt(progress.score ?? 0);
   progress.levels.filter((l) => l.solved).forEach((l) => document.querySelector(`[data-pip="${l.level}"]`)?.setAttribute('data-solved', ''));
-  if (here?.solved) showLeaked(form, undefined, false);
+  if (here?.solved) {
+    showLeaked(form, undefined, false);
+    const levelPoints = document.querySelector<HTMLElement>('[data-level-points]');
+    if (levelPoints) levelPoints.textContent = fmt(here.points);
+  }
   // Levels open in order (the server enforces it); say so up front rather than after a wasted message.
   const previousSolved = level === 1 || progress.levels.some((l) => l.level === level - 1 && l.solved);
   if (!previousSolved) {
@@ -379,6 +470,12 @@ export async function mountChat(root: HTMLElement) {
   }
   if (!log) return;
   saved?.turns?.forEach((t) => bubble(log, t.role === 'user' ? 'you' : 'bot', t.content));
+  // Agent levels: the action log since the latest new chat, oldest first, so the newest ends on top.
+  const toolLog = root.querySelector<HTMLElement>('[data-tool-log]');
+  if (toolLog) {
+    saved?.tools?.forEach((rec) => toolEntry(toolLog, rec));
+    mountToolToggle(toolLog);
+  }
   if (here?.solved || !previousSolved) {
     if (newChatButton) newChatButton.hidden = true;
   } else {
@@ -388,6 +485,9 @@ export async function mountChat(root: HTMLElement) {
       await newChat();
       // Keep the greeting, drop the rest.
       [...log.children].slice(1).forEach((el) => el.remove());
+      toolLog?.querySelectorAll('.bank-tool').forEach((el) => el.remove());
+      toolLog?.querySelector('[data-tool-empty]')?.removeAttribute('hidden');
+      if (toolLog) countTools(toolLog);
       bubble(log, 'system', 'New chat. It has forgotten everything you said. Your messages used and points stay the same.');
       newChatButton.disabled = false;
       input.focus();
@@ -424,8 +524,16 @@ export async function mountChat(root: HTMLElement) {
     typing.className = 'bank-typing';
     typing.textContent = 'Typing…';
     reply.appendChild(typing);
+    let lastTool: HTMLElement | null = null;
+    let lastRec: ToolRecord | null = null;
 
     await readReply(res, {
+      // The call shows in the action log before the agent's answer arrives.
+      tool: (rec) => {
+        lastRec = rec;
+        if (toolLog) lastTool = toolEntry(toolLog, rec, true);
+        typing.textContent = 'Working…';
+      },
       text: (sofar) => {
         reply.textContent = sofar;
         log.scrollTop = log.scrollHeight;
@@ -438,9 +546,17 @@ export async function mountChat(root: HTMLElement) {
         renderHud();
         if (payload.solved && payload.secret) {
           markSecret(reply, payload.secret);
+          // On an agent level the secret is usually in the tool result rather than the reply: open it and mark it.
+          const result = lastTool?.querySelector<HTMLElement>('.bank-tool-result');
+          if (lastTool && result) {
+            lastTool.querySelector('details')?.setAttribute('open', '');
+            markSecret(result, payload.secret);
+          }
           const secret = payload.secret;
+          const rec = lastRec as ToolRecord | null;
+          const note = rec && !rec.own && rec.account ? `The agent ran ${rec.tool} on ${rec.account}, an account that isn't yours.` : '';
           // A beat to see the secret in the bank's own reply before the takeover.
-          setTimeout(() => showLeaked(form, secret, true, payload.points), 700);
+          setTimeout(() => showLeaked(form, secret, true, payload.points, note), 700);
         }
       },
     });
