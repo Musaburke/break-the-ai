@@ -457,6 +457,9 @@
   .bank-tools-who {
     margin: 0;
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .bank-tools-more {
     display: inline-flex;
@@ -491,14 +494,23 @@
     display: none;
   }
   .bank-tools[data-open] .bank-tools-body {
-    max-height: 46svh;
+    max-height: 40svh;
     overflow-y: auto;
+    padding-bottom: 12px;
   }
 }
 
 @media (max-width: 480px) {
   .bank-tools-who {
+    order: 3;
+    flex-basis: 100%;
     font-size: 12px;
+  }
+  .bank-tools-title {
+    flex: 1;
+  }
+  .bank-tools[data-open] .bank-tools-body {
+    max-height: 32svh;
   }
 }
 
