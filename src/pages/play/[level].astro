@@ -18,7 +18,7 @@ const { inbox } = level;
 const next = levels.find((l) => l.number === level.number + 1);
 const nextHref = next ? `/play/${next.number}` : '/';
 const nextLabel = next ? `Next: level ${next.number}` : 'All levels';
-const chatTitle = level.number <= 2 ? `${bank.assistant} · ${bank.name}` : 'Help centre';
+const chatTitle = level.agent ? 'Banking agent' : level.number <= 2 ? `${bank.assistant} · ${bank.name}` : 'Help centre';
 const chatSub = level.number <= 2 ? 'Customer support' : `${bank.name} app`;
 const initials = bank.securityLead.split(' ').map((w) => w[0]).join('');
 // Inbox levels count emails, not messages, and have no chat to go back to.
@@ -142,7 +142,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
         {inbox ? (
           <BankInbox owner={inbox.owner} team={inbox.team} assistant={inbox.assistant} emails={inbox.emails} greeting={level.greeting} />
         ) : (
-          <BankChat title={chatTitle} subtitle={chatSub} greeting={level.greeting} live label={level.product} />
+          <BankChat title={chatTitle} subtitle={chatSub} greeting={level.greeting} live label={level.product} agent={level.agent?.customer} />
         )}
       </section>
     </div>

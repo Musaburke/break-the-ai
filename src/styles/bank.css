@@ -154,6 +154,10 @@
   border-top: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own chat chrome, inside data-ui */
 }
 
+.bank-form[hidden] {
+  display: none;
+}
+
 .bank-form textarea {
   flex: 1;
   resize: none;
@@ -205,8 +209,211 @@
   outline-offset: 2px;
 }
 
+/* Agent levels: the chat plus a panel logging each tool the agent calls. Wide: the panel is a column on the
+   right. Narrower: it sits under the header, newest action first, with its own scroll. */
+.bank-chat--agent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head head'
+    'log tools'
+    'form tools';
+}
+
+.bank-chat--agent .bank-head {
+  grid-area: head;
+}
+
+.bank-chat--agent .bank-log {
+  grid-area: log;
+}
+
+.bank-chat--agent .bank-form {
+  grid-area: form;
+}
+
+.bank-tools {
+  grid-area: tools;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--b-surface);
+  border-left: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own panel edge, inside data-ui */
+}
+
+.bank-tools-head {
+  padding: 14px 16px 10px;
+}
+
+.bank-tools-title {
+  margin: 0;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.bank-tools-who {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--b-muted);
+}
+
+.bank-tools-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.bank-tools-empty {
+  padding: 12px;
+  border-radius: var(--b-radius-card);
+  background: var(--b-ground);
+  color: var(--b-muted);
+  font-size: 14px;
+}
+
+.bank-tool {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--b-radius-card);
+  background: var(--b-ground);
+  animation: bank-tool-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bank-tool-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bank-tool-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.bank-tool-acct {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--b-bubble);
+  color: var(--b-brand);
+}
+
+.bank-tool-acct[data-other] {
+  background: #f8e3d3;
+  color: #8a3a0e;
+}
+
+.bank-tool-call,
+.bank-tool-result {
+  margin: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bank-tool-call {
+  color: var(--b-muted);
+}
+
+.bank-tool-status {
+  font-size: 13px;
+}
+
+.bank-tool-status[data-failed] {
+  color: #8a3a0e;
+}
+
+.bank-tool details summary {
+  cursor: pointer;
+  width: fit-content;
+  font-size: 13px;
+  color: var(--b-brand);
+  border-radius: 4px;
+}
+
+.bank-tool details summary:hover {
+  text-decoration: underline;
+}
+
+.bank-tool details summary:focus-visible {
+  outline: 2px solid var(--b-brand);
+  outline-offset: 2px;
+}
+
+.bank-tool-result {
+  margin-top: 6px;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: var(--b-radius-control);
+  background: var(--b-surface);
+  color: var(--b-text);
+}
+
+.bank-tool-result mark {
+  background: var(--accent, #c6f432);
+  color: var(--accent-ink, #1c0a3a);
+  padding: 0 2px;
+}
+
+@keyframes bank-tool-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (max-width: 1180px) {
+  .bank-chat--agent {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: 'head' 'tools' 'log' 'form';
+  }
+  .bank-tools {
+    max-height: 176px;
+    border-left: 0;
+    border-bottom: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own panel edge, inside data-ui */
+  }
+  .bank-tools-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bank-tools-who {
+    display: none;
+  }
+  .bank-tools {
+    max-height: 156px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bank-send {
     transition: none;
+  }
+  .bank-tool {
+    animation: none;
   }
 }

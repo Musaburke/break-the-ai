@@ -13,10 +13,12 @@ type Props = {
   sample?: Msg[];
   live?: boolean;
   label: string;
+  /** Agent levels: the signed-in customer, shown with the panel that logs every tool the agent calls. */
+  agent?: { name: string; id: string };
 };
-const { title, subtitle, greeting, sample = [], live = false, label } = Astro.props;
+const { title, subtitle, greeting, sample = [], live = false, label, agent } = Astro.props;
 ---
-<div data-ui="bank" class:list={['bank-chat', { 'bank-chat--live': live }]} role={live ? undefined : 'img'} aria-label={live ? undefined : label}>
+<div data-ui="bank" class:list={['bank-chat', { 'bank-chat--live': live, 'bank-chat--agent': agent }]} role={live ? undefined : 'img'} aria-label={live ? undefined : label}>
   <div class="bank-head">
     <span class="bank-logo" aria-hidden="true">{bank.name[0]}</span>
     <div>
@@ -25,6 +27,17 @@ const { title, subtitle, greeting, sample = [], live = false, label } = Astro.pr
     </div>
     {live && <button type="button" class="bank-new" data-new-chat>New chat</button>}
   </div>
+  {agent && (
+    <section class="bank-tools" aria-labelledby="bank-tools-title">
+      <div class="bank-tools-head">
+        <h2 class="bank-tools-title" id="bank-tools-title">Agent actions</h2>
+        <p class="bank-tools-who">Signed in: {agent.name} · {agent.id}</p>
+      </div>
+      <ol class="bank-tools-list" data-tool-log aria-live="polite">
+        <li class="bank-tools-empty" data-tool-empty>No actions yet. When the agent looks up an account or issues a refund, it shows here.</li>
+      </ol>
+    </section>
+  )}
   <ol class="bank-log" data-log aria-live={live ? 'polite' : undefined} aria-label={live ? 'Conversation' : undefined}>
     <li class="bank-msg bank-msg--bot">{greeting}</li>
     {sample.map((m) => (
