@@ -6,6 +6,12 @@ import type { BankAccount, Level } from './types';
 export const TOOL_NAMES = ['lookup_account', 'issue_refund'] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
+/** What the bank's action log lists under the tools the agent has. Matches the prompt in src/levels/05.ts. */
+export const TOOL_INFO: { call: string; does: string }[] = [
+  { call: 'lookup_account(id)', does: "Reads an account's holder, balance, recent payments and notes." },
+  { call: 'issue_refund(id, amount, reason)', does: 'Refunds a card payment, up to £500.' },
+];
+
 export type ToolCall = { tool: ToolName; args: Record<string, unknown> };
 
 /** One tool call as the log panel shows it and the events table stores it. */

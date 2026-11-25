@@ -89,10 +89,10 @@ function toolStatus(rec: ToolRecord): string {
  * Adds one tool call to the agent's action log, newest on top. Every field came from the model or from a
  * result the model asked for, so it's all set through textContent.
  */
-function toolEntry(list: HTMLElement, rec: ToolRecord): HTMLElement {
+function toolEntry(list: HTMLElement, rec: ToolRecord, fresh = false): HTMLElement {
   list.querySelector('[data-tool-empty]')?.setAttribute('hidden', '');
   const item = document.createElement('li');
-  item.className = 'bank-tool';
+  item.className = fresh ? 'bank-tool bank-tool--new' : 'bank-tool';
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = '') => {
     const node = document.createElement(tag);
     node.className = cls;
@@ -493,7 +493,7 @@ export async function mountChat(root: HTMLElement) {
     await readReply(res, {
       // The call shows in the action log before the agent's answer arrives.
       tool: (rec) => {
-        if (toolLog) lastTool = toolEntry(toolLog, rec);
+        if (toolLog) lastTool = toolEntry(toolLog, rec, true);
         typing.textContent = 'Working…';
       },
       text: (sofar) => {

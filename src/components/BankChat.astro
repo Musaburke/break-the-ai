@@ -4,6 +4,7 @@
 import '../styles/bank.css';
 import { bank } from '../data/bank';
 import { MAX_MESSAGE_LENGTH } from '../engine/budget';
+import { TOOL_INFO } from '../engine/tools';
 
 type Msg = { who: 'bot' | 'you' | 'system'; text: string };
 type Props = {
@@ -36,6 +37,17 @@ const { title, subtitle, greeting, sample = [], live = false, label, agent } = A
       <ol class="bank-tools-list" data-tool-log aria-live="polite">
         <li class="bank-tools-empty" data-tool-empty>No actions yet. When the agent looks up an account or issues a refund, it shows here.</li>
       </ol>
+      <div class="bank-tools-avail">
+        <h3 class="bank-tools-sub">Tools it can use</h3>
+        <dl>
+          {TOOL_INFO.map((t) => (
+            <div>
+              <dt><code>{t.call}</code></dt>
+              <dd>{t.does}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </section>
   )}
   <ol class="bank-log" data-log aria-live={live ? 'polite' : undefined} aria-label={live ? 'Conversation' : undefined}>
