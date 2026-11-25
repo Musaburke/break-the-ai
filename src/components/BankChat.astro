@@ -31,7 +31,7 @@ const { title, subtitle, greeting, sample = [], live = false, label, agent } = A
   {agent && (
     <section class="bank-tools" aria-labelledby="bank-tools-title">
       <div class="bank-tools-head">
-        <h2 class="bank-tools-title" id="bank-tools-title">Agent actions</h2>
+        <h2 class="bank-tools-title" id="bank-tools-title">Agent actions<span data-tool-count></span></h2>
         <p class="bank-tools-who">Signed in: {agent.name} · {agent.id}</p>
       </div>
       <ol class="bank-tools-list" data-tool-log aria-live="polite">

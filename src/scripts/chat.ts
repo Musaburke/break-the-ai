@@ -14,7 +14,7 @@ const errors: Record<string, string> = {
 type LevelProgress = { level: number; messagesUsed: number; hintsUsed: number; solved: number; points: number };
 
 // What the HUD shows. The server keeps the real counts; this mirrors them for display.
-const hud = { used: 0, hints: 0, perLevel: 15, clue: false, unit: 'messages' };
+const hud = { used: 0, hints: 0, perLevel: 15, clue: false, unit: 'messages', done: false };
 
 const fmt = (n: number) => n.toLocaleString('en-GB');
 
@@ -25,7 +25,8 @@ function renderHud() {
   document.querySelectorAll<HTMLElement>('.meter-bar').forEach((bar, i) => bar.toggleAttribute('data-spent', i >= left));
   // Points still on offer for this level if the next message wins it.
   const points = document.querySelector<HTMLElement>('[data-level-points]');
-  if (points) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.clue));
+  // Once the level is solved it shows the score it got instead (set by showLeaked).
+  if (points && !hud.done) points.textContent = fmt(levelScore(hud.used + 1, hud.hints, hud.clue));
 }
 type Who = 'you' | 'bot' | 'system';
 
@@ -48,8 +49,9 @@ function markSecret(item: HTMLElement, secret: string) {
   item.replaceChildren(text.slice(0, at), mark, text.slice(at + secret.length));
 }
 
-function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, points?: number) {
+function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, points?: number, note = '') {
   chatForm.hidden = true;
+  hud.done = true;
   // The way on stays in the task box after the Leaked screen closes.
   const cleared = document.querySelector<HTMLElement>('[data-cleared]');
   if (cleared) cleared.hidden = false;
@@ -59,7 +61,12 @@ function showLeaked(chatForm: HTMLFormElement, secret?: string, animate = true, 
   const secretEl = panel.querySelector<HTMLElement>('[data-leaked-secret]')!;
   secretEl.textContent = secret ? secret.toUpperCase() : '';
   panel.querySelector<HTMLElement>('[data-leaked-points]')!.textContent = points ? `+${fmt(points)} pts` : '';
+  const noteEl = panel.querySelector<HTMLElement>('[data-leaked-note]');
+  if (noteEl) noteEl.textContent = note;
   if (points) {
+    // The level is over: the HUD shows what it scored, not what a next message would be worth.
+    const levelPoints = document.querySelector<HTMLElement>('[data-level-points]');
+    if (levelPoints) levelPoints.textContent = fmt(points);
     const score = document.querySelector<HTMLElement>('[data-score]');
     if (score) score.textContent = fmt(Number(score.textContent?.replace(/\D/g, '') || 0) + points);
     document.querySelector(`[data-pip="${document.querySelector<HTMLElement>('[data-chat]')?.dataset.level}"]`)?.setAttribute('data-solved', '');
@@ -83,6 +90,13 @@ function toolStatus(rec: ToolRecord): string {
     }
   }
   return rec.tool === 'issue_refund' ? `Refund of £${rec.amount?.toFixed(2)} queued.` : 'Returned the account record.';
+}
+
+/** Shows how many calls are in the log next to its title: on a phone only the newest one is in view. */
+function countTools(list: HTMLElement) {
+  const count = list.querySelectorAll('.bank-tool').length;
+  const el = list.closest('[data-ui]')?.querySelector<HTMLElement>('[data-tool-count]');
+  if (el) el.textContent = count ? ` · ${count}` : '';
 }
 
 /**
@@ -124,6 +138,7 @@ function toolEntry(list: HTMLElement, rec: ToolRecord, fresh = false): HTMLEleme
   for (const part of [top, el('p', 'bank-tool-call', `${rec.tool}(${args})`), status, details]) item.appendChild(part);
   list.insertBefore(item, list.firstChild);
   list.scrollTop = 0;
+  countTools(list);
   return item;
 }
 
@@ -409,7 +424,11 @@ export async function mountChat(root: HTMLElement) {
   renderHud();
   document.querySelector<HTMLElement>('[data-score]')!.textContent = fmt(progress.score ?? 0);
   progress.levels.filter((l) => l.solved).forEach((l) => document.querySelector(`[data-pip="${l.level}"]`)?.setAttribute('data-solved', ''));
-  if (here?.solved) showLeaked(form, undefined, false);
+  if (here?.solved) {
+    showLeaked(form, undefined, false);
+    const levelPoints = document.querySelector<HTMLElement>('[data-level-points]');
+    if (levelPoints) levelPoints.textContent = fmt(here.points);
+  }
   // Levels open in order (the server enforces it); say so up front rather than after a wasted message.
   const previousSolved = level === 1 || progress.levels.some((l) => l.level === level - 1 && l.solved);
   if (!previousSolved) {
@@ -452,6 +471,7 @@ export async function mountChat(root: HTMLElement) {
       [...log.children].slice(1).forEach((el) => el.remove());
       toolLog?.querySelectorAll('.bank-tool').forEach((el) => el.remove());
       toolLog?.querySelector('[data-tool-empty]')?.removeAttribute('hidden');
+      if (toolLog) countTools(toolLog);
       bubble(log, 'system', 'New chat. It has forgotten everything you said. Your messages used and points stay the same.');
       newChatButton.disabled = false;
       input.focus();
@@ -489,10 +509,12 @@ export async function mountChat(root: HTMLElement) {
     typing.textContent = 'Typing…';
     reply.appendChild(typing);
     let lastTool: HTMLElement | null = null;
+    let lastRec: ToolRecord | null = null;
 
     await readReply(res, {
       // The call shows in the action log before the agent's answer arrives.
       tool: (rec) => {
+        lastRec = rec;
         if (toolLog) lastTool = toolEntry(toolLog, rec, true);
         typing.textContent = 'Working…';
       },
@@ -515,8 +537,10 @@ export async function mountChat(root: HTMLElement) {
             markSecret(result, payload.secret);
           }
           const secret = payload.secret;
+          const rec = lastRec as ToolRecord | null;
+          const note = rec && !rec.own && rec.account ? `The agent ran ${rec.tool} on ${rec.account}, an account that isn't yours.` : '';
           // A beat to see the secret in the bank's own reply before the takeover.
-          setTimeout(() => showLeaked(form, secret, true, payload.points), 700);
+          setTimeout(() => showLeaked(form, secret, true, payload.points, note), 700);
         }
       },
     });

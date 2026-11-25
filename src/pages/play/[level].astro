@@ -153,6 +153,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
       <span class="sticker leaked-points" data-leaked-points></span>
       <h2 id="leaked-title" class="leaked-word">Leaked</h2>
       <p class="leaked-secret" data-leaked-secret></p>
+      <p class="leaked-note" data-leaked-note></p>
       <div class="leaked-actions">
         <a class="pill pill--dark" href={nextHref}>{nextLabel}</a>
         <a class="pill pill--ghost" href={`/debrief/${level.number}`}>Read the debrief</a>
@@ -574,7 +575,15 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     animation: rise 520ms var(--ease-out) 360ms both;
   }
 
+  /* Agent levels: what the agent did, when the win was an action rather than the secret in a reply. */
+  .leaked-note {
+    font-size: var(--step-0, 1.125rem);
+    font-weight: 500;
+    animation: rise 520ms var(--ease-out) 420ms both;
+  }
+
   .leaked-secret:empty,
+  .leaked-note:empty,
   .leaked-points:empty {
     display: none;
   }
@@ -672,6 +681,7 @@ const pips = [...levels.map((l) => ({ n: l.number, live: true })), ...upcoming.m
     .leaked-field,
     .leaked-word,
     .leaked-secret,
+    .leaked-note,
     .leaked-actions,
     .leaked-points {
       animation: none;

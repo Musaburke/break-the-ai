@@ -429,29 +429,34 @@
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     grid-template-areas: 'head' 'tools' 'log' 'form';
   }
+  /* The whole panel scrolls here, so the tools list stays reachable under the log; the header stays put. */
   .bank-tools {
-    max-height: 176px;
+    max-height: 184px;
+    overflow-y: auto;
     border-left: 0;
     border-bottom: 1px solid var(--b-border); /* taste-skill-ignore: the bank's own panel edge, inside data-ui */
   }
-  .bank-tools-avail {
-    display: none;
-  }
   .bank-tools-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: 8px;
+    column-gap: 12px;
     padding: 10px 14px 8px;
+    background: var(--b-surface);
+  }
+  .bank-tools-list {
+    overflow: visible;
+    flex: none;
   }
 }
 
 @media (max-width: 480px) {
-  .bank-tools-who {
-    display: none;
-  }
   .bank-tools {
-    max-height: 156px;
+    max-height: 168px;
   }
 }
 
